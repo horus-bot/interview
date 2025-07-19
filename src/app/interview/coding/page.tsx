@@ -77,7 +77,7 @@ function CodingInterviewPage() {
         } catch (error) {
             console.error("TTS failed:", error);
             setMessages(prev => [...prev, { speaker: 'ai', text, audioUrl: undefined }]);
-            toast({ variant: "destructive", title: "Audio Error", description: "Couldn't generate AI voice." });
+            toast({ variant: "destructive", title: "Audio Error", description: "Couldn't generate AI voice. Continuing without audio." });
         } finally {
             setIsAISpeaking(false);
         }
