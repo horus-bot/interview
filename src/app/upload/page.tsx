@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { reasoningAnalysis } from '@/ai/flows/reasoning-analysis';
@@ -26,7 +25,6 @@ const formSchema = z.object({
     .refine((files) => files?.length === 1, 'A video file is required.')
     .refine((files) => files?.[0]?.type.startsWith('video/'), 'Please upload a valid video file.')
     .refine((files) => files?.[0]?.size <= 100 * 1024 * 1024, 'Video file must be less than 100MB.'),
-  transcript: z.string().min(50, 'Transcript must be at least 50 characters long.'),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -51,9 +49,7 @@ function UploadPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      transcript: '',
-    },
+    defaultValues: {},
   });
 
   const videoFile = form.watch('video');
@@ -64,7 +60,6 @@ function UploadPage() {
     setProgress(10);
 
     const videoFile = data.video[0];
-    const transcript = data.transcript;
 
     const reader = new FileReader();
     reader.readAsDataURL(videoFile);
@@ -75,12 +70,12 @@ function UploadPage() {
         const videoDataUri = reader.result as string;
         setProgress(50);
 
-        const analysisResult = await reasoningAnalysis({ videoDataUri, transcript });
+        const analysisResult = await reasoningAnalysis({ videoDataUri });
         setProgress(90);
 
         const videoUrl = URL.createObjectURL(videoFile);
         sessionStorage.setItem('videoUrl', videoUrl);
-        sessionStorage.setItem('transcript', transcript);
+        // The transcript is now part of the analysis result
         sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
 
         setProgress(100);
@@ -126,7 +121,7 @@ function UploadPage() {
                 Upload & Analyze
             </h1>
             <p className="mt-4 text-lg text-muted-foreground animate-in">
-                Provide your interview recording and a transcript to get instant, AI-powered feedback.
+                Provide your interview recording to get instant, AI-powered feedback.
             </p>
         </div>
 
@@ -183,24 +178,6 @@ function UploadPage() {
                                 />
                             </label>
                           </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="transcript"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Interview Transcript</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Paste the full transcript of your interview here..."
-                            className="resize-y min-h-[150px]"
-                            {...field}
-                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

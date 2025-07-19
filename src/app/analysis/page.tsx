@@ -12,7 +12,6 @@ import { withAuth } from '@/context/auth-context';
 function AnalysisPage() {
   const router = useRouter();
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<ReasoningAnalysisOutput | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -21,16 +20,13 @@ function AnalysisPage() {
     if (typeof window !== 'undefined') {
       try {
         const storedVideoUrl = sessionStorage.getItem('videoUrl');
-        const storedTranscript = sessionStorage.getItem('transcript');
         const storedAnalysis = sessionStorage.getItem('analysisResult');
         
-        if (storedVideoUrl && storedTranscript && storedAnalysis) {
+        if (storedVideoUrl && storedAnalysis) {
           setVideoUrl(storedVideoUrl);
-          setTranscript(storedTranscript);
           setAnalysis(JSON.parse(storedAnalysis));
         } else {
-          // If data is missing, it's not an error yet, just means we should redirect.
-          // The redirect will be handled in the render logic.
+          // No data found, will redirect
         }
       } catch (e) {
         console.error("Failed to parse analysis data from session storage:", e);
@@ -43,10 +39,10 @@ function AnalysisPage() {
 
   useEffect(() => {
     // Client-side redirect if data is missing after loading
-    if (!isLoading && (!analysis || !videoUrl || !transcript)) {
+    if (!isLoading && (!analysis || !videoUrl)) {
       router.push('/upload');
     }
-  }, [isLoading, analysis, videoUrl, transcript, router]);
+  }, [isLoading, analysis, videoUrl, router]);
 
   if (isLoading) {
     return (
@@ -68,7 +64,7 @@ function AnalysisPage() {
     );
   }
 
-  if (error || !analysis || !videoUrl || !transcript) {
+  if (error || !analysis || !videoUrl) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
         <h2 className="text-2xl font-semibold mb-4">No Analysis Found</h2>
@@ -83,7 +79,7 @@ function AnalysisPage() {
     );
   }
 
-  return <AnalysisDashboard videoUrl={videoUrl} transcript={transcript} analysis={analysis} />;
+  return <AnalysisDashboard videoUrl={videoUrl} analysis={analysis} />;
 }
 
 

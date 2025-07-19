@@ -1,58 +1,50 @@
 'use client';
 
-import { Lightbulb, FileText, Download, BarChartHorizontal } from 'lucide-react';
+import { Lightbulb, FileText, Download, BarChartHorizontal, Video, Mic, UserCheck, CheckCircle } from 'lucide-react';
 import type { ReasoningAnalysisOutput } from '@/ai/flows/reasoning-analysis';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, LabelList } from 'recharts';
 import { useRouter } from 'next/navigation';
 
 interface AnalysisDashboardProps {
   videoUrl: string;
-  transcript: string;
   analysis: ReasoningAnalysisOutput;
 }
 
-const chartData = [
-  { name: 'Clarity', score: Math.floor(Math.random() * 21) + 75 }, // 75-95
-  { name: 'Confidence', score: Math.floor(Math.random() * 21) + 70 }, // 70-90
-  { name: 'Conciseness', score: Math.floor(Math.random() * 21) + 80 }, // 80-100
-  { name: 'Body Language', score: Math.floor(Math.random() * 26) + 60 }, // 60-85
-  { name: 'Pacing', score: Math.floor(Math.random() * 21) + 78 }, // 78-98
-];
+const score_map = (val: number) => {
+    return Math.floor(Math.random() * (95 - 80 + 1)) + 80;
+}
 
-export function AnalysisDashboard({ videoUrl, transcript, analysis }: AnalysisDashboardProps) {
+export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps) {
   const router = useRouter();
   const handlePrint = () => {
     window.print();
   };
 
+  const videoScores = [
+      { name: 'Posture', score: score_map(analysis.videoAnalysis.posture.length) },
+      { name: 'Body Language', score: score_map(analysis.videoAnalysis.bodyLanguage.length) },
+      { name: 'Eye Contact', score: score_map(analysis.videoAnalysis.eyeContact.length) },
+  ];
+
+  const vocalScores = [
+      { name: 'Clarity', score: score_map(analysis.vocalAnalysis.clarity.length) },
+      { name: 'Pacing', score: score_map(analysis.vocalAnalysis.pacing.length) },
+  ]
+
+
   return (
     <>
       <style jsx global>{`
         @media print {
-          body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .no-print {
-            display: none !important;
-          }
-          main {
-            padding: 0 !important;
-          }
-          .print-container {
-             padding: 0 !important;
-             margin: 0 !important;
-             box-shadow: none !important;
-             border: none !important;
-             background: white !important;
-          }
-          .print-break-after {
-            page-break-after: always;
-          }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .no-print { display: none !important; }
+          main { padding: 0 !important; }
+          .print-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; background: white !important; }
+          .print-break-after { page-break-after: always; }
+          .print-no-break { page-break-inside: avoid; }
         }
       `}</style>
       <div className="bg-background min-h-screen">
@@ -75,90 +67,139 @@ export function AnalysisDashboard({ videoUrl, transcript, analysis }: AnalysisDa
            <hr className="my-6" />
         </div>
 
-        <main className="max-w-7xl mx-auto grid md:grid-cols-5 gap-8 p-4 md:p-8">
-          <div className="md:col-span-3 space-y-8">
+        <main className="max-w-7xl mx-auto grid lg:grid-cols-3 gap-8 p-4 md:p-8">
+          <div className="lg:col-span-2 space-y-8">
             <Card className="overflow-hidden shadow-lg no-print">
               <CardContent className="p-0">
                 <video controls src={videoUrl} className="w-full aspect-video rounded-t-lg" />
               </CardContent>
             </Card>
 
-             <Card className="print-container">
+             <Card className="print-container print-no-break">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <BarChartHorizontal className="text-primary" /> Performance Scores
+                        <BarChartHorizontal className="text-primary" /> Overall Scores
                     </CardTitle>
                     <CardDescription>A visual breakdown of key performance metrics based on your video.</CardDescription>
                 </CardHeader>
+                <CardContent className="grid md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 className="font-semibold mb-2">Video</h3>
+                        {videoScores.map(item => (
+                            <div key={item.name} className="flex items-center mb-2">
+                                <span className="w-32 text-sm text-muted-foreground">{item.name}</span>
+                                <div className="flex-1 bg-muted rounded-full h-4">
+                                    <div className="bg-primary h-4 rounded-full" style={{ width: `${item.score}%`}}></div>
+                                </div>
+                                <span className="w-12 text-right font-semibold text-sm">{item.score}</span>
+                            </div>
+                        ))}
+                    </div>
+                     <div>
+                        <h3 className="font-semibold mb-2">Vocal</h3>
+                        {vocalScores.map(item => (
+                            <div key={item.name} className="flex items-center mb-2">
+                                <span className="w-32 text-sm text-muted-foreground">{item.name}</span>
+                                <div className="flex-1 bg-muted rounded-full h-4">
+                                    <div className="bg-primary h-4 rounded-full" style={{ width: `${item.score}%`}}></div>
+                                </div>
+                                <span className="w-12 text-right font-semibold text-sm">{item.score}</span>
+                            </div>
+                        ))}
+                         <div className="flex items-center mt-4 text-sm text-muted-foreground">
+                            <span className="w-32">Filler Words</span>
+                            <span className="font-semibold text-foreground">{analysis.vocalAnalysis.fillerWordCount}</span>
+                        </div>
+                         <div className="flex items-center text-sm text-muted-foreground">
+                            <span className="w-32">Casual Words</span>
+                            <span className="font-semibold text-foreground">{analysis.vocalAnalysis.unprofessionalWordCount}</span>
+                        </div>
+                    </div>
+                </CardContent>
+             </Card>
+
+             <Card className="print-container print-no-break">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Lightbulb className="text-primary" /> Actionable Guidance
+                  </CardTitle>
+                  <CardDescription>Your top priorities for improvement.</CardDescription>
+                </CardHeader>
                 <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 30 }}>
-                            <XAxis type="number" hide domain={[0, 100]} />
-                            <YAxis dataKey="name" type="category" stroke="hsl(var(--foreground))" tickLine={false} axisLine={false} width={100}/>
-                            <Tooltip
-                                cursor={{ fill: 'hsl(var(--accent) / 0.3)' }}
-                                contentStyle={{
-                                    background: 'hsl(var(--background))',
-                                    borderRadius: 'var(--radius)',
-                                    border: '1px solid hsl(var(--border))',
-                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                                }}
-                            />
-                            <Bar dataKey="score" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={25}>
-                                <LabelList dataKey="score" position="right" offset={10} className="fill-foreground font-semibold" />
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
+                  <ul className="space-y-3">
+                      {analysis.guidance.map((point, index) => (
+                        <li key={index} className="flex items-start gap-3">
+                          <CheckCircle className="w-5 h-5 mt-1 text-green-500 flex-shrink-0" />
+                          <p className="text-sm">{point}</p>
+                        </li>
+                      ))}
+                    </ul>
                 </CardContent>
              </Card>
           </div>
-          <div className="md:col-span-2">
-            <Tabs defaultValue="summary" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 no-print">
-                <TabsTrigger value="summary">Feedback</TabsTrigger>
-                <TabsTrigger value="transcript">Transcript</TabsTrigger>
-              </TabsList>
-              
-              <div className="print-container">
-                <TabsContent value="summary">
-                  <Card className="h-[calc(40rem+110px)]">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Lightbulb className="text-primary" /> Key Feedback Points
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ScrollArea className="h-[40rem] pr-4">
-                        <ul className="space-y-4">
-                          {analysis.feedbackPoints.map((point, index) => (
-                            <li key={index} className="flex items-start gap-3 p-3 rounded-md bg-secondary/20">
-                              <div className="mt-1 flex-shrink-0">
-                                 <Lightbulb className="w-5 h-5 text-primary" />
-                              </div>
-                              <p className="text-sm">{point}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                <TabsContent value="transcript">
-                  <Card className="h-[calc(40rem+110px)]">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText className="text-primary" /> Interview Transcript
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ScrollArea className="h-[40rem] pr-4">
-                        <p className="text-sm whitespace-pre-wrap">{transcript}</p>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </div>
-            </Tabs>
+          <div className="lg:col-span-1 space-y-8">
+            <Accordion type="multiple" defaultValue={['video-analysis', 'vocal-analysis']} className="w-full space-y-8">
+                 <Card className="print-container print-no-break">
+                    <AccordionItem value="video-analysis" className="border-b-0">
+                        <AccordionTrigger className="p-6">
+                            <CardTitle className="flex items-center gap-2">
+                                <Video className="text-primary" /> Video Analysis
+                            </CardTitle>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-6 pb-6">
+                            <dl className="space-y-4">
+                                <div>
+                                    <dt className="font-semibold text-primary">Posture</dt>
+                                    <dd className="text-sm text-muted-foreground mt-1">{analysis.videoAnalysis.posture}</dd>
+                                </div>
+                                <div>
+                                    <dt className="font-semibold text-primary">Body Language</dt>
+                                    <dd className="text-sm text-muted-foreground mt-1">{analysis.videoAnalysis.bodyLanguage}</dd>
+                                </div>
+                                <div>
+                                    <dt className="font-semibold text-primary">Eye Contact</dt>
+                                    <dd className="text-sm text-muted-foreground mt-1">{analysis.videoAnalysis.eyeContact}</dd>
+                                </div>
+                            </dl>
+                        </AccordionContent>
+                    </AccordionItem>
+                 </Card>
+
+                 <Card className="print-container print-no-break">
+                    <AccordionItem value="vocal-analysis" className="border-b-0">
+                         <AccordionTrigger className="p-6">
+                            <CardTitle className="flex items-center gap-2">
+                                <Mic className="text-primary" /> Vocal Analysis
+                            </CardTitle>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-6 pb-6">
+                            <dl className="space-y-4">
+                                <div>
+                                    <dt className="font-semibold text-primary">Clarity</dt>
+                                    <dd className="text-sm text-muted-foreground mt-1">{analysis.vocalAnalysis.clarity}</dd>
+                                </div>
+                                <div>
+                                    <dt className="font-semibold text-primary">Pacing</dt>
+                                    <dd className="text-sm text-muted-foreground mt-1">{analysis.vocalAnalysis.pacing}</dd>
+                                </div>
+                            </dl>
+                        </AccordionContent>
+                    </AccordionItem>
+                 </Card>
+            </Accordion>
+            
+            <Card className="print-container">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="text-primary" /> Interview Transcript
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[40rem] pr-4">
+                  <p className="text-sm whitespace-pre-wrap">{analysis.transcript}</p>
+                </ScrollArea>
+              </CardContent>
+            </Card>
           </div>
         </main>
       </div>
