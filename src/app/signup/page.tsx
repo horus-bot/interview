@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -34,12 +35,22 @@ export default function SignupPage() {
 
   const onSubmit = async (data: FormValues) => {
     try {
-      await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      
+      // Check if the user is new
+      const isNewUser = userCredential.user.metadata.creationTime === userCredential.user.metadata.lastSignInTime;
+
       toast({
         title: 'Account Created',
         description: "You've been successfully signed up!",
       });
-      router.push('/');
+
+      if(isNewUser) {
+        router.push('/my-analyses');
+      } else {
+        router.push('/');
+      }
+
     } catch (error: any) {
         if (error.code === 'auth/email-already-in-use') {
             toast({
@@ -121,3 +132,4 @@ export default function SignupPage() {
     </main>
   );
 }
+

@@ -43,7 +43,7 @@ export default function Home() {
               <div className="h-10 w-24 bg-muted rounded-md animate-pulse" />
             ) : user ? (
               <>
-                 <Button onClick={() => router.push('/analysis')} variant="ghost">
+                 <Button onClick={() => router.push('/my-analyses')} variant="ghost">
                     My Analyses
                 </Button>
                 <Button onClick={() => router.push('/logout')} variant="outline">Logout</Button>
