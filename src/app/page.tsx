@@ -49,8 +49,8 @@ export default function Home() {
               <div className="h-10 w-24 bg-muted rounded-md animate-pulse" />
             ) : user ? (
               <>
-                 <Button asChild variant="ghost">
-                    <Link href="/analysis">My Analyses</Link>
+                 <Button onClick={() => router.push('/analysis')} variant="ghost">
+                    My Analyses
                 </Button>
                 <Button onClick={() => router.push('/logout')} variant="outline">Logout</Button>
               </>
