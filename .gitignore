@@ -1,40 +1,117 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
-/.pnp
+# Node dependencies
+/node_modules/
+.pnp/
 .pnp.js
-.yarn/install-state.gz
+.yarn/
+.yarnrc.yml
+.yarnrc
+.yarn-integrity
 
-# testing
-/coverage
-
-# next.js
+# Build output
 /.next/
-/out/
+out/
+build/
+dist/
+.next/
+.next-static/
+.next-cache/
+.cache/
+coverage/
+.nyc_output/
+lib/
+.eslintcache
 
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# local env files
-.env.local
-.env.development.local
-.env.production.local
-.env.test.local
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+Desktop.ini
 
-# vercel
-.vercel
+# Editor directories and files
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
 
-# typescript
+# Environment files
+.env
+.env.*
+!.env.example
+
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Misc
+*.pem
+*.log
+*.tgz
+*.swp
+*.swo
+
+# Vercel
+.vercel/
+
+# Local
+*.local
+
+# Test
+/coverage/
+*.lcov
+
+# Storybook
+storybook-static/
+out-storybook/
+
+# Firebase
+.firebase/
+.firebaserc
+
+# Mac system files
+.AppleDouble
+.LSOverride
+
+# Windows system files
+$RECYCLE.BIN/
+
+# npm package lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# JetBrains IDEs
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VSCode settings
+.vscode/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Ignore backup files
+*~
+*.bak
+*.orig
+
+# Ignore generated files
+*.min.js
+*.map
+
+# Ignore local config
+*.local.js
+*.local.ts
