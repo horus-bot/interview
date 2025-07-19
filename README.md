@@ -4,30 +4,27 @@ This is a Next.js application built in Firebase Studio. It allows users to pract
 
 ## Running the Project Locally
 
-Follow these steps to download and run this project on your local machine.
+Follow these steps to clone and run this project on your local machine.
 
-### 1. Download the Project
-In Firebase Studio, find the option to "Download as ZIP" or "Export to .zip" to get a copy of the project files. Unzip the downloaded file on your computer.
-
-### 2. Navigate to the Project Directory
-Open your terminal or command prompt and use the `cd` command to go into the unzipped project folder.
+### 1. Clone or Download the Project
+Clone the repository using git or download the project as a ZIP file.
 
 ```bash
-cd path/to/your-project-folder
+# Using Git
+git clone <your-repository-url>
+cd <project-folder>
+
+# Or, if you downloaded a ZIP file
+unzip project.zip
+cd project
 ```
 
-### 3. Install Dependencies
-Install all the required packages using npm.
-
-```bash
-npm install
-```
-
-### 4. Set Up Environment Variables
-Create a new file named `.env` in the root of your project directory. This file will hold your secret keys for Firebase and Google AI. Copy the contents of the `.env.example` file (if it exists) or use the template below and fill in your actual credentials.
+### 2. Set Up Environment Variables
+The project includes a blank `.env` file. Open it and fill in your secret keys for Firebase and Google AI. This step is crucial for the application to run.
 
 You can find your Firebase project credentials in your [Firebase project settings](https://console.firebase.google.com/). You can get a Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
+Your `.env` file should look like this after filling it in:
 ```
 # Firebase Configuration
 NEXT_PUBLIC_FIREBASE_API_KEY=YOUR_API_KEY
@@ -41,7 +38,14 @@ NEXT_PUBLIC_FIREBASE_APP_ID=YOUR_APP_ID
 GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 ```
 
-### 5. Run the Development Server
+### 3. Install Dependencies
+Install all the required packages using npm.
+
+```bash
+npm install
+```
+
+### 4. Run the Development Server
 Start the local development server using the following command:
 
 ```bash
