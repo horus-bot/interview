@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -69,9 +70,6 @@ function InterviewPage() {
           videoRef.current.srcObject = stream;
         }
 
-        stream.getVideoTracks().forEach(track => track.enabled = isCameraOn);
-        stream.getAudioTracks().forEach(track => track.enabled = isMicOn);
-
         const recorder = new MediaRecorder(stream);
         mediaRecorderRef.current = recorder;
 
@@ -141,7 +139,7 @@ function InterviewPage() {
       }
     };
     setupMedia();
-  }, [isCameraOn, isMicOn, toast, router]);
+  }, [toast, router]);
 
   const handleNextQuestion = () => {
     if (currentQuestionIndex < interviewQuestions.length - 1) {
@@ -188,7 +186,7 @@ function InterviewPage() {
                     <Bot className="h-16 w-16 text-primary mb-4"/>
                     <h2 className="text-2xl font-bold">Ready for your Mock Interview?</h2>
                     <p className="text-muted-foreground mt-2 mb-6">You'll be asked {interviewQuestions.length} questions. The session will be recorded and analyzed.</p>
-                    <Button onClick={handleStartInterview} size="lg">
+                    <Button onClick={handleStartInterview} size="lg" disabled={hasPermission === null}>
                         <Play className="mr-2" /> Start Interview
                     </Button>
                 </div>
