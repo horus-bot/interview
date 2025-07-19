@@ -1,198 +1,107 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { ArrowRight, Bot, UploadCloud } from 'lucide-react';
+import { useRef } from 'react';
+import Link from 'next/link';
+import { ArrowRight, Bot, Upload, BarChart2, Smile } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
-import { useToast } from '@/hooks/use-toast';
-import { reasoningAnalysis } from '@/ai/flows/reasoning-analysis';
-
-const formSchema = z.object({
-  video: z
-    .custom<FileList>()
-    .refine((files) => files?.length === 1, 'A video file is required.')
-    .refine((files) => files?.[0]?.type.startsWith('video/'), 'Please upload a valid video file.'),
-  transcript: z.string().min(50, 'Transcript must be at least 50 characters long.'),
-});
-
-type FormValues = z.infer<typeof formSchema>;
 
 export default function Home() {
-  const [status, setStatus] = useState<'idle' | 'processing' | 'error'>('idle');
-  const [progress, setProgress] = useState(0);
-  const router = useRouter();
-  const { toast } = useToast();
   const container = useRef(null);
 
-  useGSAP(() => {
-    gsap.from(".animate-in", {
+  useGSAP(
+    () => {
+      gsap.from('.animate-in', {
         opacity: 0,
-        y: 20,
-        duration: 0.75,
+        y: 30,
+        duration: 0.8,
         stagger: 0.2,
-        ease: "power3.out",
-      }
-    );
-  }, { scope: container });
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      transcript: '',
-    },
-  });
-
-  const onSubmit = async (data: FormValues) => {
-    setStatus('processing');
-    setProgress(10);
-
-    const videoFile = data.video[0];
-    const transcript = data.transcript;
-
-    const reader = new FileReader();
-    reader.readAsDataURL(videoFile);
-    setProgress(30);
-
-    reader.onload = async () => {
-      try {
-        const videoDataUri = reader.result as string;
-        setProgress(50);
-
-        const analysisResult = await reasoningAnalysis({ videoDataUri, transcript });
-        setProgress(90);
-
-        const videoUrl = URL.createObjectURL(videoFile);
-        sessionStorage.setItem('videoUrl', videoUrl);
-        sessionStorage.setItem('transcript', transcript);
-        sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
-
-        setProgress(100);
-        router.push('/analysis');
-      } catch (error) {
-        console.error('Analysis failed:', error);
-        setStatus('error');
-        toast({
-          variant: 'destructive',
-          title: 'Analysis Failed',
-          description: 'Something went wrong. Please try again.',
-        });
-        setStatus('idle');
-        setProgress(0);
-      }
-    };
-
-    reader.onerror = () => {
-      console.error('File reading failed');
-      toast({
-        variant: 'destructive',
-        title: 'File Error',
-        description: 'There was an error reading your video file.',
+        ease: 'power3.out',
       });
-      setStatus('idle');
-      setProgress(0);
-    };
-  };
-  
+    },
+    { scope: container }
+  );
+
   return (
-    <main ref={container} className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 lg:p-8">
-      <div className="w-full max-w-2xl">
-        <div className="text-center mb-8">
-            <h1 className="font-headline text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-primary animate-in">
-                Interview <span className="text-accent">Insights</span>
+    <div ref={container}>
+      <header className="absolute inset-x-0 top-0 z-50 p-4">
+        <nav className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-2">
+            <Bot className="h-8 w-8 text-primary" />
+            <span className="text-xl font-bold tracking-tight">Interview Insights</span>
+          </div>
+          <Button asChild variant="ghost">
+            <Link href="/analysis">My Analysis</Link>
+          </Button>
+        </nav>
+      </header>
+      <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 lg:p-8">
+        <div className="w-full max-w-5xl text-center">
+          <div className="mb-12 animate-in">
+            <h1 className="text-5xl md:text-7xl font-bold tracking-tighter text-primary">
+              Ace Your Next Interview
             </h1>
-            <p className="mt-4 text-lg text-muted-foreground animate-in">
-                Upload your interview recording and get instant, AI-powered feedback to land your dream job.
+            <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+              Leverage AI to practice your interview skills, analyze your performance, and get personalized feedback to land your dream job.
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <FeatureCard
+              href="/interview"
+              icon={<Bot className="h-10 w-10" />}
+              title="Mock Interview"
+              description="Practice a live interview with our friendly AI assistant."
+            />
+            <FeatureCard
+              href="/upload"
+              icon={<Upload className="h-10 w-10" />}
+              title="Upload & Analyze"
+              description="Upload a past interview recording for in-depth analysis."
+            />
+            <FeatureCard
+              href="/improve"
+              icon={<Smile className="h-10 w-10" />}
+              title="Improve Yourself"
+              description="Get targeted exercises to improve your communication skills."
+            />
+          </div>
         </div>
+        <footer className="absolute bottom-4 text-center text-muted-foreground text-sm animate-in">
+            Powered by AI. Built for humans.
+        </footer>
+      </main>
+    </div>
+  );
+}
 
-        <Card className="shadow-lg animate-in">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <Bot className="h-8 w-8 text-accent" />
-              Analyze Your Interview
-            </CardTitle>
-            <CardDescription>
-              Provide your interview video and a transcript to get started. Your data is processed locally and is not stored on our servers.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {status === 'processing' ? (
-                <div className="flex flex-col items-center justify-center space-y-4 p-8">
-                    <p className="text-primary font-medium">Analyzing, please wait...</p>
-                    <Progress value={progress} className="w-full" />
-                    <p className="text-sm text-muted-foreground">This may take a few moments.</p>
-                </div>
-            ) : (
-                <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="video"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Interview Video</FormLabel>
-                        <FormControl>
-                          <div className="relative flex items-center justify-center w-full">
-                            <label htmlFor="video-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-secondary hover:bg-muted">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                    <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
-                                    <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                                    <p className="text-xs text-muted-foreground">MP4, WebM, or OGG</p>
-                                </div>
-                                <Input 
-                                  id="video-upload" 
-                                  type="file" 
-                                  className="hidden" 
-                                  accept="video/*"
-                                  onChange={(e) => field.onChange(e.target.files)}
-                                />
-                            </label>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+interface FeatureCardProps {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}
 
-                  <FormField
-                    control={form.control}
-                    name="transcript"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Interview Transcript</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Paste the full transcript of your interview here..."
-                            className="resize-y min-h-[150px]"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <Button type="submit" className="w-full" size="lg" disabled={status === 'processing'}>
-                    Analyze Now
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </form>
-              </Form>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+function FeatureCard({ href, icon, title, description }: FeatureCardProps) {
+  return (
+    <Link href={href} className="block group animate-in">
+      <Card className="h-full hover:border-primary/80 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+        <CardHeader className="items-center text-center">
+          <div className="p-4 bg-secondary rounded-full mb-4 text-primary group-hover:bg-primary/10 transition-colors">
+            {icon}
+          </div>
+          <CardTitle className="text-2xl">{title}</CardTitle>
+          <CardDescription className="text-base">{description}</CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <Button variant="outline" className="group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+            Get Started <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

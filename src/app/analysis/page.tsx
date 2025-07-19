@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, redirect } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,22 +14,29 @@ export default function AnalysisPage() {
   const [transcript, setTranscript] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<ReasoningAnalysisOutput | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    try {
-      const storedVideoUrl = sessionStorage.getItem('videoUrl');
-      const storedTranscript = sessionStorage.getItem('transcript');
-      const storedAnalysis = sessionStorage.getItem('analysisResult');
-      
-      if (storedVideoUrl && storedTranscript && storedAnalysis) {
-        setVideoUrl(storedVideoUrl);
-        setTranscript(storedTranscript);
-        setAnalysis(JSON.parse(storedAnalysis));
+    // This effect should only run on the client side.
+    if (typeof window !== 'undefined') {
+      try {
+        const storedVideoUrl = sessionStorage.getItem('videoUrl');
+        const storedTranscript = sessionStorage.getItem('transcript');
+        const storedAnalysis = sessionStorage.getItem('analysisResult');
+        
+        if (storedVideoUrl && storedTranscript && storedAnalysis) {
+          setVideoUrl(storedVideoUrl);
+          setTranscript(storedTranscript);
+          setAnalysis(JSON.parse(storedAnalysis));
+        } else {
+          setError(true);
+        }
+      } catch (e) {
+        console.error("Failed to parse analysis data from session storage:", e);
+        setError(true);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Failed to parse analysis data from session storage:", error);
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
@@ -51,16 +58,20 @@ export default function AnalysisPage() {
     );
   }
 
-  if (!analysis || !videoUrl || !transcript) {
+  if (error || !analysis || !videoUrl || !transcript) {
+    // Redirecting on the client side if data is missing
+    if (typeof window !== 'undefined') {
+       router.push('/upload');
+    }
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
         <h2 className="text-2xl font-semibold mb-4">No Analysis Found</h2>
         <p className="text-muted-foreground mb-8">
-          It looks like you navigated here directly. Please start by analyzing an interview.
+          Redirecting you to the upload page to start an analysis.
         </p>
-        <Button onClick={() => router.push('/')}>
+         <Button onClick={() => router.push('/upload')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Home
+          Go to Upload
         </Button>
       </div>
     );
