@@ -440,14 +440,14 @@ export default function ImprovePage() {
   const ActivityComponent = activeActivity ? activityComponents[activeActivity] : null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white/80 backdrop-blur-sm sticky top-0 z-40 border-b">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="bg-background/80 backdrop-blur-sm sticky top-0 z-40 border-b">
         <div className="max-w-5xl mx-auto p-4 flex items-center justify-between">
           <Button asChild variant="outline">
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Link>
+        <Link href="/">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Home
+        </Link>
           </Button>
           <h1 className="text-2xl font-bold text-primary">Improve Yourself</h1>
           <div />
@@ -464,16 +464,16 @@ export default function ImprovePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {improvementAreas.map((area, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow duration-300 flex flex-col">
+            <Card key={index} className="bg-card border border-border hover:shadow-lg transition-all duration-200 flex flex-col">
               <CardHeader className="flex flex-row items-center gap-4">
                   {area.icon}
                   <div>
-                    <CardTitle>{area.title}</CardTitle>
-                    <CardDescription>{area.description}</CardDescription>
+                    <CardTitle className="text-primary">{area.title}</CardTitle>
+                    <CardDescription className="text-muted-foreground">{area.description}</CardDescription>
                   </div>
               </CardHeader>
               <CardContent className="mt-auto flex">
-                <Button className="w-full" onClick={() => openActivity(area.component)}>
+                <Button className="bg-primary text-primary-foreground hover:bg-primary/80 transition-all duration-200" onClick={() => openActivity(area.component)}>
                   Start Exercise
                 </Button>
               </CardContent>
