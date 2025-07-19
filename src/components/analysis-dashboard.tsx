@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Lightbulb, FileText, Download, BarChartHorizontal, Video, Mic, UserCheck, CheckCircle, MessageSquareQuote } from 'lucide-react';
@@ -13,8 +14,18 @@ interface AnalysisDashboardProps {
   analysis: ReasoningAnalysisOutput;
 }
 
-const score_map = (val: number) => {
-    return Math.floor(Math.random() * (95 - 80 + 1)) + 80;
+const calculateScore = (text: string): number => {
+    const maxLength = 400; // The length of text at which the score is minimal
+    const minScore = 65;
+    const maxScore = 95;
+
+    // Clamp the length between 0 and maxLength
+    const effectiveLength = Math.max(0, Math.min(text.length, maxLength));
+
+    // Linear interpolation: score decreases as length increases
+    const score = maxScore - (effectiveLength / maxLength) * (maxScore - minScore);
+    
+    return Math.floor(score);
 }
 
 export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps) {
@@ -24,14 +35,14 @@ export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps
   };
 
   const videoScores = [
-      { name: 'Posture', score: score_map(analysis.videoAnalysis.posture.length) },
-      { name: 'Body Language', score: score_map(analysis.videoAnalysis.bodyLanguage.length) },
-      { name: 'Eye Contact', score: score_map(analysis.videoAnalysis.eyeContact.length) },
+      { name: 'Posture', score: calculateScore(analysis.videoAnalysis.posture) },
+      { name: 'Body Language', score: calculateScore(analysis.videoAnalysis.bodyLanguage) },
+      { name: 'Eye Contact', score: calculateScore(analysis.videoAnalysis.eyeContact) },
   ];
 
   const vocalScores = [
-      { name: 'Clarity', score: score_map(analysis.vocalAnalysis.clarity.length) },
-      { name: 'Pacing', score: score_map(analysis.vocalAnalysis.pacing.length) },
+      { name: 'Clarity', score: calculateScore(analysis.vocalAnalysis.clarity) },
+      { name: 'Pacing', score: calculateScore(analysis.vocalAnalysis.pacing) },
   ]
 
 
@@ -157,8 +168,10 @@ export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps
             <Card className="print-container print-no-break">
                 <CardHeader>
                     <CardTitle>Interview Summary</CardTitle>
-                    <CardDescription>{analysis.interviewSummary}</CardDescription>
                 </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{analysis.interviewSummary}</p>
+                </CardContent>
             </Card>
             <Accordion type="multiple" defaultValue={['content-analysis', 'video-analysis', 'vocal-analysis']} className="w-full space-y-8">
                  <Card className="print-container print-no-break">
