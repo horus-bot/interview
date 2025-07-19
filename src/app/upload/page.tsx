@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowRight, Bot, UploadCloud, ArrowLeft } from 'lucide-react';
+import { ArrowRight, Bot, UploadCloud, ArrowLeft, FileVideo } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
@@ -24,7 +24,8 @@ const formSchema = z.object({
   video: z
     .custom<FileList>()
     .refine((files) => files?.length === 1, 'A video file is required.')
-    .refine((files) => files?.[0]?.type.startsWith('video/'), 'Please upload a valid video file.'),
+    .refine((files) => files?.[0]?.type.startsWith('video/'), 'Please upload a valid video file.')
+    .refine((files) => files?.[0]?.size <= 100 * 1024 * 1024, 'Video file must be less than 100MB.'),
   transcript: z.string().min(50, 'Transcript must be at least 50 characters long.'),
 });
 
@@ -54,6 +55,9 @@ function UploadPage() {
       transcript: '',
     },
   });
+
+  const videoFile = form.watch('video');
+  const uploadedFileName = useMemo(() => videoFile?.[0]?.name, [videoFile]);
 
   const onSubmit = async (data: FormValues) => {
     setStatus('processing');
@@ -87,7 +91,7 @@ function UploadPage() {
         toast({
           variant: 'destructive',
           title: 'Analysis Failed',
-          description: 'Something went wrong. Please try again.',
+          description: 'Something went wrong. The model may be unavailable, or the file may be too large.',
         });
         setStatus('idle');
         setProgress(0);
@@ -107,9 +111,9 @@ function UploadPage() {
   };
   
   return (
-    <main ref={container} className="flex min-h-screen w-full flex-col items-center justify-center bg-gray-50 p-4 lg:p-8">
-      <div className="absolute top-4 left-4">
-          <Button asChild variant="outline">
+    <main ref={container} className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 lg:p-8">
+      <div className="absolute top-4 left-4 animate-in">
+          <Button asChild variant="outline" className="bg-card/80 backdrop-blur-sm">
               <Link href="/">
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back to Home
@@ -126,14 +130,14 @@ function UploadPage() {
             </p>
         </div>
 
-        <Card className="shadow-lg animate-in">
+        <Card className="shadow-2xl animate-in bg-card/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-2xl">
               <Bot className="h-8 w-8 text-primary" />
               Analyze Your Interview
             </CardTitle>
             <CardDescription>
-              Your data is processed securely and is not stored on our servers.
+              Your data is processed securely and is not stored on our servers. Max file size: 100MB.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -141,7 +145,7 @@ function UploadPage() {
                 <div className="flex flex-col items-center justify-center space-y-4 p-8">
                     <p className="text-primary font-medium">Analyzing, please wait...</p>
                     <Progress value={progress} className="w-full" />
-                    <p className="text-sm text-muted-foreground">This may take a few moments.</p>
+                    <p className="text-sm text-muted-foreground">This may take a few moments depending on the video size.</p>
                 </div>
             ) : (
                 <Form {...form}>
@@ -154,11 +158,21 @@ function UploadPage() {
                         <FormLabel>Interview Video</FormLabel>
                         <FormControl>
                           <div className="relative flex items-center justify-center w-full">
-                            <label htmlFor="video-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-secondary hover:bg-muted">
+                            <label htmlFor="video-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-secondary/20 hover:bg-secondary/40 transition-colors">
                                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                    <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
-                                    <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                                    <p className="text-xs text-muted-foreground">MP4, WebM, or OGG</p>
+                                    {uploadedFileName ? (
+                                        <>
+                                            <FileVideo className="w-8 h-8 mb-3 text-primary" />
+                                            <p className="font-semibold text-primary">{uploadedFileName}</p>
+                                            <p className="text-xs text-muted-foreground">Click to choose a different file</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
+                                            <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                                            <p className="text-xs text-muted-foreground">MP4, WebM, etc. (Max 100MB)</p>
+                                        </>
+                                    )}
                                 </div>
                                 <Input 
                                   id="video-upload" 

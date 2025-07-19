@@ -41,24 +41,33 @@ export default function SignupPage() {
       });
       router.push('/');
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Sign Up Failed',
-        description: error.message,
-      });
+        if (error.code === 'auth/email-already-in-use') {
+            toast({
+                variant: 'destructive',
+                title: 'Sign Up Failed',
+                description: 'This email address is already in use.',
+            });
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Sign Up Failed',
+                description: error.message,
+            });
+        }
     }
   };
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-gray-50 p-4">
-      <div className="absolute top-4 left-4">
+    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+      <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
+       <div className="absolute top-4 left-4">
           <Button asChild variant="outline">
               <Link href="/">
                   Back to Home
               </Link>
           </Button>
       </div>
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm shadow-2xl bg-card/90 backdrop-blur-sm">
         <CardHeader className="text-center">
           <CardTitle className="flex justify-center items-center gap-2 text-2xl">
             <Bot className="h-8 w-8 text-primary" />
@@ -103,7 +112,7 @@ export default function SignupPage() {
           </Form>
           <div className="mt-4 text-center text-sm">
             Already have an account?{' '}
-            <Link href="/login" className="underline">
+            <Link href="/login" className="font-semibold text-primary hover:underline">
               Login
             </Link>
           </div>

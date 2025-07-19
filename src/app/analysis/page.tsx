@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,7 +18,6 @@ function AnalysisPage() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    // This effect should only run on the client side.
     if (typeof window !== 'undefined') {
       try {
         const storedVideoUrl = sessionStorage.getItem('videoUrl');
@@ -30,7 +29,8 @@ function AnalysisPage() {
           setTranscript(storedTranscript);
           setAnalysis(JSON.parse(storedAnalysis));
         } else {
-          setError(true);
+          // If data is missing, it's not an error yet, just means we should redirect.
+          // The redirect will be handled in the render logic.
         }
       } catch (e) {
         console.error("Failed to parse analysis data from session storage:", e);
@@ -41,18 +41,27 @@ function AnalysisPage() {
     }
   }, []);
 
+  useEffect(() => {
+    // Client-side redirect if data is missing after loading
+    if (!isLoading && (!analysis || !videoUrl || !transcript)) {
+      router.push('/upload');
+    }
+  }, [isLoading, analysis, videoUrl, transcript, router]);
+
   if (isLoading) {
     return (
       <div className="p-4 md:p-8 max-w-7xl mx-auto animate-pulse">
-        <Skeleton className="h-10 w-48 mb-8" />
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="space-y-4">
+        <div className="flex justify-between items-center mb-8">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="grid md:grid-cols-5 gap-8">
+          <div className="md:col-span-3 space-y-8">
             <Skeleton className="w-full aspect-video rounded-lg" />
-            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-80 w-full rounded-lg" />
           </div>
-          <div className="space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-64 w-full" />
+          <div className="md:col-span-2">
+            <Skeleton className="h-[48rem] w-full rounded-lg" />
           </div>
         </div>
       </div>
@@ -60,15 +69,11 @@ function AnalysisPage() {
   }
 
   if (error || !analysis || !videoUrl || !transcript) {
-    // Redirecting on the client side if data is missing
-    if (typeof window !== 'undefined') {
-       router.push('/upload');
-    }
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
         <h2 className="text-2xl font-semibold mb-4">No Analysis Found</h2>
         <p className="text-muted-foreground mb-8">
-          Redirecting you to the upload page to start an analysis.
+          It looks like there's no analysis data available. Redirecting you to start a new one.
         </p>
          <Button onClick={() => router.push('/upload')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
