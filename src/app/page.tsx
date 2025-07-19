@@ -2,15 +2,19 @@
 
 import { useRef } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Bot, Upload, BarChart2, Smile } from 'lucide-react';
+import { ArrowRight, Bot, Upload, BarChart2, Smile, LogIn } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/context/auth-context';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const container = useRef(null);
+  const { user, loading } = useAuth();
+  const router = useRouter();
 
   useGSAP(
     () => {
@@ -29,13 +33,33 @@ export default function Home() {
     <div ref={container}>
       <header className="absolute inset-x-0 top-0 z-50 p-4">
         <nav className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <Bot className="h-8 w-8 text-primary" />
             <span className="text-xl font-bold tracking-tight">Interview Insights</span>
+          </Link>
+          <div className="flex items-center gap-4">
+             {loading ? (
+              <div />
+            ) : user ? (
+              <>
+                 <Button asChild variant="ghost">
+                    <Link href="/analysis">My Analysis</Link>
+                </Button>
+                <Button onClick={() => router.push('/logout')}>Logout</Button>
+              </>
+            ) : (
+                <>
+                <Button asChild variant="ghost">
+                    <Link href="/login">Login</Link>
+                </Button>
+                <Button asChild>
+                    <Link href="/signup">
+                        Sign Up <LogIn className="ml-2 h-4 w-4" />
+                    </Link>
+                </Button>
+                </>
+            )}
           </div>
-          <Button asChild variant="ghost">
-            <Link href="/analysis">My Analysis</Link>
-          </Button>
         </nav>
       </header>
       <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 lg:p-8">

@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AnalysisDashboard } from '@/components/analysis-dashboard';
 import type { ReasoningAnalysisOutput } from '@/ai/flows/reasoning-analysis';
+import { withAuth } from '@/context/auth-context';
 
-export default function AnalysisPage() {
+function AnalysisPage() {
   const router = useRouter();
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string | null>(null);
@@ -79,3 +80,6 @@ export default function AnalysisPage() {
 
   return <AnalysisDashboard videoUrl={videoUrl} transcript={transcript} analysis={analysis} />;
 }
+
+
+export default withAuth(AnalysisPage);

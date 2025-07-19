@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { reasoningAnalysis } from '@/ai/flows/reasoning-analysis';
+import { withAuth } from '@/context/auth-context';
 
 const formSchema = z.object({
   video: z
@@ -29,7 +30,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function UploadPage() {
+function UploadPage() {
   const [status, setStatus] = useState<'idle' | 'processing' | 'error'>('idle');
   const [progress, setProgress] = useState(0);
   const router = useRouter();
@@ -205,3 +206,5 @@ export default function UploadPage() {
     </main>
   );
 }
+
+export default withAuth(UploadPage);
