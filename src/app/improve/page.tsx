@@ -355,7 +355,7 @@ const StarMethodBuilder = () => {
     };
 
     return (
-        <DialogContent className="max-w-4xl h-[90vh]">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
             <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                     <Lightbulb /> STAR Method Builder
@@ -364,8 +364,8 @@ const StarMethodBuilder = () => {
                     Structure your accomplishments into compelling stories using the STAR method. Fill in each section and let AI help you craft the perfect narrative.
                 </DialogDescription>
             </DialogHeader>
-            <div className="grid md:grid-cols-2 gap-6 h-full overflow-hidden">
-                <ScrollArea className="h-full">
+            <div className="grid md:grid-cols-2 gap-6 overflow-hidden flex-1">
+                <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 p-1">
                       <div>
                           <Label htmlFor="situation" className="text-lg font-semibold">Situation</Label>
@@ -394,11 +394,11 @@ const StarMethodBuilder = () => {
                         <Sparkles className="mr-2" />
                         {isLoading ? 'Crafting Story...' : 'Refine with AI'}
                     </Button>
-                    <Card className="flex-1 flex flex-col">
+                    <Card className="flex-1 flex flex-col overflow-hidden">
                         <CardHeader>
                             <CardTitle>Your Polished Story</CardTitle>
                         </CardHeader>
-                        <CardContent className="flex-1">
+                        <CardContent className="flex-1 overflow-y-auto">
                             <ScrollArea className="h-full pr-2">
                               {isLoading ? (
                                   <p className="text-muted-foreground animate-pulse">Generating your story...</p>
