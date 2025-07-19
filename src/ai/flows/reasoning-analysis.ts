@@ -20,7 +20,7 @@ const ReasoningAnalysisInputSchema = z.object({
 });
 export type ReasoningAnalysisInput = z.infer<typeof ReasoningAnalysisInputSchema>;
 
-export const ReasoningAnalysisOutputSchema = z.object({
+const ReasoningAnalysisOutputSchema = z.object({
   transcript: z
     .string()
     .describe(

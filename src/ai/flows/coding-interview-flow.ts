@@ -9,7 +9,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {reasoningAnalysis, ReasoningAnalysisOutputSchema} from './reasoning-analysis';
+import type { ReasoningAnalysisOutput } from './reasoning-analysis';
 
 // Schema for generating coding questions
 const GenerateCodingQuestionsInputSchema = z.object({
@@ -46,9 +46,29 @@ const CodingAnalysisSchema = z.object({
     alternativeApproaches: z.string().describe("Suggestions for alternative methods or algorithms to solve the problem."),
 });
 
-const AnalyzeCodingAttemptOutputSchema = ReasoningAnalysisOutputSchema.extend({
-  codingAnalysis: CodingAnalysisSchema,
+const AnalyzeCodingAttemptOutputSchema = z.object({
+    transcript: z.string(),
+    interviewSummary: z.string(),
+    videoAnalysis: z.object({
+        posture: z.string(),
+        bodyLanguage: z.string(),
+        eyeContact: z.string(),
+    }),
+    vocalAnalysis: z.object({
+        clarity: z.string(),
+        pacing: z.string(),
+        fillerWordCount: z.number(),
+        unprofessionalWordCount: z.number(),
+    }),
+    contentAnalysis: z.object({
+        answerClarity: z.string(),
+        relevance: z.string(),
+        improvementSuggestions: z.string(),
+    }),
+    guidance: z.array(z.string()),
+    codingAnalysis: CodingAnalysisSchema,
 });
+export type AnalyzeCodingAttemptOutput = z.infer<typeof AnalyzeCodingAttemptOutputSchema>;
 
 
 // Exported functions
@@ -56,7 +76,7 @@ export async function generateCodingQuestions(input: z.infer<typeof GenerateCodi
   return generateCodingQuestionsFlow(input);
 }
 
-export async function analyzeCodingAttempt(input: z.infer<typeof AnalyzeCodingAttemptInputSchema>): Promise<z.infer<typeof AnalyzeCodingAttemptOutputSchema>> {
+export async function analyzeCodingAttempt(input: z.infer<typeof AnalyzeCodingAttemptInputSchema>): Promise<AnalyzeCodingAttemptOutput> {
   return analyzeCodingAttemptFlow(input);
 }
 
