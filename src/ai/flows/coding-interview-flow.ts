@@ -95,18 +95,18 @@ const analyzeCodingPrompt = ai.definePrompt({
     name: 'analyzeCodingPrompt',
     input: { schema: AnalyzeCodingAttemptInputSchema },
     output: { schema: AnalyzeCodingAttemptOutputSchema },
-    prompt: `You are an expert interview coach reviewing a technical interview submission. The user was asked to solve a coding problem. You have access to a video of them explaining their thought process and their final code submission.
+    prompt: `You are an expert interview coach reviewing a technical interview submission. The user was asked to solve a coding problem. You have access to a video of their entire session. The beginning of the video is their answer to a relevant behavioral question for their role, and the rest is them explaining their thought process as they code.
     
     Perform a comprehensive, two-part analysis.
     
-    **Part 1: Standard Interview Performance (Video/Audio Analysis)**
-    Analyze the video to provide standard interview feedback. Follow these steps exactly as you would for a behavioral interview:
+    **Part 1: Standard Interview Performance (Full Video/Audio Analysis)**
+    Analyze the entire video to provide standard interview feedback.
     - Transcribe the entire video, identifying the speaker as "Interviewee".
-    - Write a brief summary of the user's explanation.
-    - Analyze video for posture, body language, and eye contact.
-    - Analyze audio for clarity, pacing, and count filler/unprofessional words.
-    - Analyze the content of their explanation for clarity and structure.
-    - Provide 3-5 actionable guidance points based on this video/audio analysis.
+    - Write a brief summary of the user's entire explanation (behavioral and technical).
+    - Analyze the full video for posture, body language, and eye contact.
+    - Analyze the full audio for clarity, pacing, and count filler/unprofessional words.
+    - Analyze the content of their explanation for clarity and structure. Consider both the initial behavioral answer and the technical walkthrough.
+    - Provide 3-5 actionable guidance points based on this combined analysis.
 
     **Part 2: Technical Coding Analysis**
     Now, critically evaluate the provided code solution.
