@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Mic, Video, PhoneOff, Play, Pause, Send, Bot, MicOff, VideoOff, Volume2 } from 'lucide-react';
+import { ArrowLeft, Mic, Video, PhoneOff, Send, Bot, MicOff, VideoOff, Volume2, Loader2, Info } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -111,6 +111,7 @@ function BehavioralInterviewPage() {
                     const videoUrl = URL.createObjectURL(videoBlob);
                     sessionStorage.setItem('videoUrl', videoUrl);
                     sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
+                    sessionStorage.setItem('analysisType', 'behavioral');
 
                     setProcessingState({progress: 100, message: 'Redirecting to analysis...'});
                     router.push('/analysis');
@@ -210,7 +211,7 @@ function BehavioralInterviewPage() {
                     <h2 className="text-2xl font-bold">Ready for your Behavioral Interview?</h2>
                     <p className="text-muted-foreground mt-2 mb-6">You'll be asked {interviewQuestions.length} common behavioral questions. The AI will speak each question.</p>
                     <Button onClick={handleStartInterview} size="lg" disabled={hasPermission === null}>
-                        <Play className="mr-2" /> Start Interview
+                        {hasPermission === null ? <><Loader2 className="mr-2 animate-spin" /> Waiting for permissions...</> : <>Start Interview</>}
                     </Button>
                 </div>
             );
@@ -221,6 +222,10 @@ function BehavioralInterviewPage() {
                     <div className="flex items-center gap-4 my-4">
                         {isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse" />}
                         <h2 className="text-3xl font-bold">"{interviewQuestions[currentQuestionIndex]}"</h2>
+                    </div>
+                    <div className="mt-4 bg-primary/20 text-primary-foreground p-3 rounded-lg flex items-center gap-2">
+                        <Info className="h-5 w-5" />
+                        <p className="font-medium text-sm">{isAISpeaking ? "Listen to the question..." : "Your turn to speak. Answer the question, then click Next."}</p>
                     </div>
                     <Button onClick={handleNextQuestion} size="lg" className="mt-6" disabled={isAISpeaking}>
                         {currentQuestionIndex < interviewQuestions.length - 1 ? (
@@ -237,7 +242,7 @@ function BehavioralInterviewPage() {
                     <h2 className="text-2xl font-bold">Interview Finished!</h2>
                     <p className="text-muted-foreground mt-2 mb-6">Something went wrong during processing. Would you like to retry?</p>
                     <Button onClick={() => window.location.reload()} size="lg">
-                        <Play className="mr-2" /> Restart Interview
+                        Restart Interview
                     </Button>
                 </div>
             );

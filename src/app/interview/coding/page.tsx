@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Mic, Video, Send, Bot, Code, Loader2, Volume2, MicOff, VideoOff, Play } from 'lucide-react';
+import { ArrowLeft, Mic, Video, Send, Bot, Code, Loader2, Volume2, MicOff, VideoOff, Play, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { withAuth } from '@/context/auth-context';
@@ -199,12 +199,43 @@ function CodingInterviewPage() {
 
         switch (stage) {
             case 'setup':
-                return <Card className="w-full max-w-lg"><CardHeader><CardTitle>Coding Interview Setup</CardTitle><CardDescription>Configure your technical mock interview.</CardDescription></CardHeader><CardContent className="space-y-4"><Select onValueChange={(v) => setConfig(c => ({...c, role: v}))}><SelectTrigger><SelectValue placeholder="Select a Role" /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><Select onValueChange={(v) => setConfig(c => ({...c, level: v}))}><SelectTrigger><SelectValue placeholder="Select a Level" /></SelectTrigger><SelectContent>{levels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select><Button onClick={handleStartInterview} className="w-full" disabled={isLoading}>{isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Starting...</> : 'Start Interview'}</Button></CardContent></Card>;
+                return <Card className="w-full max-w-lg"><CardHeader><CardTitle>Coding Interview Setup</CardTitle><CardDescription>Configure your technical mock interview.</CardDescription></CardHeader><CardContent className="space-y-4"><Select onValueChange={(v) => setConfig(c => ({...c, role: v}))}><SelectTrigger><SelectValue placeholder="Select a Role" /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><Select onValueChange={(v) => setConfig(c => ({...c, level: v}))}><SelectTrigger><SelectValue placeholder="Select a Level" /></SelectTrigger><SelectContent>{levels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select><Button onClick={handleStartInterview} className="w-full" disabled={isLoading || hasPermission === null}>{isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Starting...</> : (hasPermission === null ? 'Waiting for permissions...': 'Start Interview')}</Button></CardContent></Card>;
             case 'intro':
             case 'conceptual':
-                return <div className="flex flex-col items-center justify-center h-full text-center p-4"><div className="flex items-center gap-4 my-4">{isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse" />}{lastMessage?.speaker === 'ai' && <h2 className="text-3xl font-bold">"{lastMessage.text}"</h2>}</div><Button onClick={handleNextStage} size="lg" className="mt-6" disabled={isAISpeaking}>I'm ready to answer <Send className="ml-2"/></Button></div>;
+                return (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <div className="flex items-center gap-4 my-4">
+                            {isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse" />}
+                            {lastMessage?.speaker === 'ai' && <h2 className="text-3xl font-bold">"{lastMessage.text}"</h2>}
+                        </div>
+                        <div className="mt-4 bg-primary/20 text-primary-foreground p-3 rounded-lg flex items-center gap-2">
+                           <Info className="h-5 w-5" />
+                           <p className="font-medium text-sm">{isAISpeaking ? "Listen to the question..." : "Please answer the question above."}</p>
+                        </div>
+                        <Button onClick={handleNextStage} size="lg" className="mt-6" disabled={isAISpeaking}>I'm ready to answer <Send className="ml-2"/></Button>
+                    </div>
+                );
             case 'coding':
-                return <div className="p-4 h-full flex flex-col"><Card className="flex-grow flex flex-col"><CardHeader><CardTitle>Your Code</CardTitle><CardDescription>Explain your thought process as you code. This will be analyzed.</CardDescription></CardHeader><CardContent className="flex-grow flex flex-col"><Textarea value={code} onChange={e => setCode(e.target.value)} placeholder="Type your code here..." className="flex-grow font-mono text-sm resize-none" /><Button onClick={handleFinishInterview} className="w-full mt-4"><Send className="mr-2"/>Finish & Analyze</Button></CardContent></Card></div>;
+                return (
+                    <div className="p-4 h-full flex flex-col">
+                        <div className="mb-4 bg-primary/20 text-primary-foreground p-3 rounded-lg flex items-center gap-2">
+                           <Info className="h-5 w-5" />
+                           <p className="font-medium text-sm">Please write your code in the editor and explain your thought process out loud.</p>
+                        </div>
+                        <Card className="flex-grow flex flex-col">
+                            <CardHeader>
+                                <CardTitle>Your Code</CardTitle>
+                                <CardDescription>{questions[currentQuestionIndex]?.question}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex-grow flex flex-col">
+                                <Textarea value={code} onChange={e => setCode(e.target.value)} placeholder="Type your code here..." className="flex-grow font-mono text-sm resize-none" />
+                                <Button onClick={handleFinishInterview} className="w-full mt-4">
+                                    <Send className="mr-2"/>Finish & Analyze
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                );
             case 'processing':
                 return <div className="flex flex-col items-center justify-center h-full text-center p-4"><h2 className="text-2xl font-bold mb-4">{processingState.message}</h2><Progress value={processingState.progress} className="w-full max-w-md"/></div>;
             case 'error':
@@ -221,7 +252,7 @@ function CodingInterviewPage() {
             </header>
             <main className="flex-1 grid md:grid-cols-2 gap-4 p-4 overflow-hidden">
                 <div className="bg-gray-800 rounded-lg flex items-center justify-center relative">
-                    {stage === 'coding' ? renderContent() : <div className="flex items-center justify-center h-full">{renderContent()}</div>}
+                    <div className="flex items-center justify-center h-full w-full">{renderContent()}</div>
                 </div>
                 <div className="bg-gray-800 rounded-lg relative overflow-hidden flex items-center justify-center">
                     <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
@@ -234,7 +265,7 @@ function CodingInterviewPage() {
                     <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
                         <p className="font-semibold">You</p>
                     </div>
-                     {(stage !== 'setup' && stage !== 'processing') && (
+                     {(stage !== 'setup' && stage !== 'processing' && stage !== 'error') && (
                         <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
                             <div className="w-2 h-2 bg-white rounded-full"></div>REC
                         </div>
@@ -254,5 +285,3 @@ function CodingInterviewPage() {
 }
 
 export default withAuth(CodingInterviewPage);
-
-    
