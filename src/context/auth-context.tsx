@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -40,25 +41,27 @@ export const useAuth = () => useContext(AuthContext);
 export function withAuth<P extends object>(WrappedComponent: React.ComponentType<P>) {
     const WithAuthComponent = (props: P) => {
         const { user, loading } = useAuth();
-        const [isClient, setIsClient] = useState(false);
+        const router = useRouter();
+        const [isVerifying, setIsVerifying] = useState(true);
 
         useEffect(() => {
-            setIsClient(true);
-        }, []);
-
-        useEffect(() => {
-            if (isClient && !loading && !user) {
-                window.location.href = '/login';
+            if (!loading) {
+                if (!user) {
+                    router.push('/login');
+                } else {
+                    setIsVerifying(false);
+                }
             }
-        }, [user, loading, isClient]);
+        }, [user, loading, router]);
 
-        if (loading || !user) {
+        if (isVerifying) {
             return (
                 <div className="flex items-center justify-center min-h-screen">
-                    <div className="p-8 space-y-4">
-                        <Skeleton className="h-12 w-64" />
+                    <div className="p-8 space-y-4 w-full max-w-md">
+                        <Skeleton className="h-12 w-full" />
                         <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-5/6" />
+                         <Skeleton className="h-20 w-full" />
                     </div>
                 </div>
             );
