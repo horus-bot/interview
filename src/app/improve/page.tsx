@@ -12,6 +12,8 @@ import { starMethodStoryGenerator } from '@/ai/flows/star-method-generator';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertTitle } from '@/components/ui/alert';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
 
 const improvementAreas = [
   {
@@ -86,6 +88,7 @@ const CameraActivity = ({ title, description, children }: { title: string, descr
         <DialogContent className="max-w-3xl">
             <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">{title}</DialogTitle>
+
                 <DialogDescription>{description}</DialogDescription>
             </DialogHeader>
             <div className="relative w-full aspect-video bg-secondary rounded-lg overflow-hidden">
@@ -255,61 +258,61 @@ const SpeakingPractice = () => {
           Record your answer to the question below and get instant AI feedback.
         </DialogDescription>
       </DialogHeader>
-      
-      <Card className="bg-secondary/50">
-        <CardContent className="p-4">
-            <p className="text-center font-medium">"{question}"</p>
-        </CardContent>
-      </Card>
-      
-      <div className="flex justify-center items-center gap-4 my-4">
-        {!isRecording ? (
-          <Button onClick={handleStartRecording} size="lg" disabled={isLoading}>
-            <MicVocal className="mr-2" /> Start Recording
+      <ScrollArea className="h-[60vh] p-4">
+        <Card className="bg-secondary/50">
+          <CardContent className="p-4">
+              <p className="text-center font-medium">"{question}"</p>
+          </CardContent>
+        </Card>
+        
+        <div className="flex justify-center items-center gap-4 my-4">
+          {!isRecording ? (
+            <Button onClick={handleStartRecording} size="lg" disabled={isLoading}>
+              <MicVocal className="mr-2" /> Start Recording
+            </Button>
+          ) : (
+            <Button onClick={handleStopRecording} variant="destructive" size="lg">
+              <MicVocal className="mr-2 animate-pulse" /> Stop Recording
+            </Button>
+          )}
+          <Button onClick={selectNewQuestion} variant="outline" disabled={isRecording || isLoading}>
+              <RefreshCw className="mr-2 h-4 w-4" /> New Question
           </Button>
-        ) : (
-          <Button onClick={handleStopRecording} variant="destructive" size="lg">
-            <MicVocal className="mr-2 animate-pulse" /> Stop Recording
-          </Button>
+        </div>
+        
+        {audioUrl && (
+            <div className="space-y-4">
+                <audio src={audioUrl} controls className="w-full" />
+                <Button onClick={handleAnalyze} className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Analyzing...' : <> <Sparkles className="mr-2"/> Analyze My Answer </>}
+                </Button>
+            </div>
         )}
-        <Button onClick={selectNewQuestion} variant="outline" disabled={isRecording || isLoading}>
-            <RefreshCw className="mr-2 h-4 w-4" /> New Question
-        </Button>
-      </div>
-      
-      {audioUrl && (
-          <div className="space-y-4">
-              <audio src={audioUrl} controls className="w-full" />
-              <Button onClick={handleAnalyze} className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Analyzing...' : <> <Sparkles className="mr-2"/> Analyze My Answer </>}
-              </Button>
-          </div>
-      )}
 
-      {isLoading && <div className="text-center p-4">Analyzing your speech...</div>}
+        {isLoading && <div className="text-center p-4">Analyzing your speech...</div>}
 
-      {feedback && (
-          <Card>
-              <CardHeader>
-                  <CardTitle>AI Feedback</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <Lightbulb className="w-5 h-5 mt-1 text-primary"/>
-                    <p><strong>Clarity:</strong> {feedback.clarity}</p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Lightbulb className="w-5 h-5 mt-1 text-primary"/>
-                    <p><strong>Pacing:</strong> {feedback.pacing}</p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Lightbulb className="w-5 h-5 mt-1 text-primary"/>
-                    <p><strong>Filler Words:</strong> {feedback.fillerWords}</p>
-                  </div>
-              </CardContent>
-          </Card>
-      )}
-
+        {feedback && (
+            <Card>
+                <CardHeader>
+                    <CardTitle>AI Feedback</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <Lightbulb className="w-5 h-5 mt-1 text-primary"/>
+                      <p><strong>Clarity:</strong> {feedback.clarity}</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Lightbulb className="w-5 h-5 mt-1 text-primary"/>
+                      <p><strong>Pacing:</strong> {feedback.pacing}</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Lightbulb className="w-5 h-5 mt-1 text-primary"/>
+                      <p><strong>Filler Words:</strong> {feedback.fillerWords}</p>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
+      </ScrollArea>
     </DialogContent>
   );
 };
@@ -352,7 +355,7 @@ const StarMethodBuilder = () => {
     };
 
     return (
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl h-[90vh]">
             <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                     <Lightbulb /> STAR Method Builder
@@ -361,46 +364,50 @@ const StarMethodBuilder = () => {
                     Structure your accomplishments into compelling stories using the STAR method. Fill in each section and let AI help you craft the perfect narrative.
                 </DialogDescription>
             </DialogHeader>
-            <div className="grid md:grid-cols-2 gap-6 py-4">
-                <div className="space-y-4">
-                    <div>
-                        <Label htmlFor="situation" className="text-lg font-semibold">Situation</Label>
-                        <p className="text-sm text-muted-foreground mb-2">Describe the context. Where and when did this take place?</p>
-                        <Textarea id="situation" value={situation} onChange={(e) => setSituation(e.target.value)} placeholder="e.g., At my previous job as a project manager..." />
-                    </div>
-                    <div>
-                        <Label htmlFor="task" className="text-lg font-semibold">Task</Label>
-                        <p className="text-sm text-muted-foreground mb-2">What was your goal or responsibility?</p>
-                        <Textarea id="task" value={task} onChange={(e) => setTask(e.target.value)} placeholder="e.g., My task was to launch a new feature..." />
-                    </div>
-                    <div>
-                        <Label htmlFor="action" className="text-lg font-semibold">Action</Label>
-                        <p className="text-sm text-muted-foreground mb-2">What specific steps did you take?</p>
-                        <Textarea id="action" value={action} onChange={(e) => setAction(e.target.value)} placeholder="e.g., I organized a team, created a timeline..." />
-                    </div>
-                    <div>
-                        <Label htmlFor="result" className="text-lg font-semibold">Result</Label>
-                        <p className="text-sm text-muted-foreground mb-2">What was the outcome? Use numbers if possible.</p>
-                        <Textarea id="result" value={result} onChange={(e) => setResult(e.target.value)} placeholder="e.g., As a result, we increased user engagement by 15%..." />
-                    </div>
-                </div>
-                <div className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-6 h-full overflow-hidden">
+                <ScrollArea className="h-full">
+                  <div className="space-y-4 p-1">
+                      <div>
+                          <Label htmlFor="situation" className="text-lg font-semibold">Situation</Label>
+                          <p className="text-sm text-muted-foreground mb-2">Describe the context. Where and when did this take place?</p>
+                          <Textarea id="situation" value={situation} onChange={(e) => setSituation(e.target.value)} placeholder="e.g., At my previous job as a project manager..." className="min-h-[100px]"/>
+                      </div>
+                      <div>
+                          <Label htmlFor="task" className="text-lg font-semibold">Task</Label>
+                          <p className="text-sm text-muted-foreground mb-2">What was your goal or responsibility?</p>
+                          <Textarea id="task" value={task} onChange={(e) => setTask(e.target.value)} placeholder="e.g., My task was to launch a new feature..." className="min-h-[100px]"/>
+                      </div>
+                      <div>
+                          <Label htmlFor="action" className="text-lg font-semibold">Action</Label>
+                          <p className="text-sm text-muted-foreground mb-2">What specific steps did you take?</p>
+                          <Textarea id="action" value={action} onChange={(e) => setAction(e.target.value)} placeholder="e.g., I organized a team, created a timeline..." className="min-h-[100px]"/>
+                      </div>
+                      <div>
+                          <Label htmlFor="result" className="text-lg font-semibold">Result</Label>
+                          <p className="text-sm text-muted-foreground mb-2">What was the outcome? Use numbers if possible.</p>
+                          <Textarea id="result" value={result} onChange={(e) => setResult(e.target.value)} placeholder="e.g., As a result, we increased user engagement by 15%..." className="min-h-[100px]"/>
+                      </div>
+                  </div>
+                </ScrollArea>
+                <div className="flex flex-col gap-4 h-full">
                     <Button onClick={handleGenerateStory} disabled={isLoading} className="w-full">
                         <Sparkles className="mr-2" />
                         {isLoading ? 'Crafting Story...' : 'Refine with AI'}
                     </Button>
-                    <Card className="h-[calc(100%-4rem)]">
+                    <Card className="flex-1 flex flex-col">
                         <CardHeader>
                             <CardTitle>Your Polished Story</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            {isLoading ? (
-                                <p className="text-muted-foreground animate-pulse">Generating your story...</p>
-                            ) : generatedStory ? (
-                                <p className="text-sm whitespace-pre-wrap">{generatedStory}</p>
-                            ) : (
-                                <p className="text-muted-foreground">Your refined story will appear here.</p>
-                            )}
+                        <CardContent className="flex-1">
+                            <ScrollArea className="h-full pr-2">
+                              {isLoading ? (
+                                  <p className="text-muted-foreground animate-pulse">Generating your story...</p>
+                              ) : generatedStory ? (
+                                  <p className="text-sm whitespace-pre-wrap">{generatedStory}</p>
+                              ) : (
+                                  <p className="text-muted-foreground">Your refined story will appear here.</p>
+                              )}
+                            </ScrollArea>
                         </CardContent>
                     </Card>
                 </div>
@@ -465,7 +472,7 @@ export default function ImprovePage() {
                     <CardDescription>{area.description}</CardDescription>
                   </div>
               </CardHeader>
-              <CardContent className="mt-auto">
+              <CardContent className="mt-auto flex">
                 <Button className="w-full" onClick={() => openActivity(area.component)}>
                   Start Exercise
                 </Button>
