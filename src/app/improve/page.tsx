@@ -1,13 +1,17 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Eye, MicVocal, PersonStanding, Lightbulb, Sparkles, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Eye, MicVocal, PersonStanding, Lightbulb, Sparkles, AlertCircle, Video, Play, Pause, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { speakAnalysis } from '@/ai/flows/speak-analysis';
+import { starMethodStoryGenerator } from '@/ai/flows/star-method-generator';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 
 const improvementAreas = [
   {
@@ -43,28 +47,125 @@ const interviewQuestions = [
     "Tell me about a time you failed. What did you learn from it?",
 ];
 
-// Placeholder component for future activities
-const PlaceholderActivity = ({ title, onOpenChange }: { title: string, onOpenChange: (open: boolean) => void }) => (
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>{title}</DialogTitle>
-      <DialogDescription>
-        This interactive exercise is coming soon. Stay tuned for updates!
-      </DialogDescription>
-    </DialogHeader>
-    <div className="py-8 text-center">
-      <p className="text-muted-foreground">Coming Soon!</p>
-    </div>
-    <DialogClose asChild>
-      <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
-        Close
-      </Button>
-    </DialogClose>
-  </DialogContent>
+// Base camera component
+const CameraActivity = ({ title, description, children }: { title: string, description: string, children: React.ReactNode }) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        let stream: MediaStream | null = null;
+        const getCameraPermission = async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                setHasCameraPermission(true);
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                setHasCameraPermission(false);
+                toast({
+                    variant: 'destructive',
+                    title: 'Camera Access Denied',
+                    description: 'Please enable camera permissions in your browser settings to use this feature.',
+                });
+            }
+        };
+
+        getCameraPermission();
+
+        return () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [toast]);
+
+    return (
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">{title}</DialogTitle>
+                <DialogDescription>{description}</DialogDescription>
+            </DialogHeader>
+            <div className="relative w-full aspect-video bg-secondary rounded-lg overflow-hidden">
+                <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                {!hasCameraPermission && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                        <Alert variant="destructive" className="max-w-sm">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Camera permission is required to use this feature.</AlertTitle>
+                        </Alert>
+                    </div>
+                )}
+                {hasCameraPermission && children}
+            </div>
+        </DialogContent>
+    );
+}
+
+// Posture Practice Activity
+const PosturePractice = () => (
+    <CameraActivity title="Posture Practice" description="Use the guides to align your head and shoulders. Sit up straight and look directly into the camera.">
+        <div className="absolute inset-0 pointer-events-none">
+            {/* Horizontal line for shoulders */}
+            <div className="absolute top-1/2 left-1/4 w-1/2 h-0.5 bg-primary/50 border-t-2 border-dashed border-primary-foreground"></div>
+            {/* Vertical line for head */}
+            <div className="absolute left-1/2 top-1/4 w-0.5 h-1/2 bg-primary/50 border-l-2 border-dashed border-primary-foreground"></div>
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center p-2 bg-black/30 rounded-md">
+                <p className="text-white text-sm">Align Head Here</p>
+            </div>
+             <div className="absolute top-1/2 left-1/4 -translate-y-1/2 -translate-x-1/2 text-center p-2 bg-black/30 rounded-md -rotate-90">
+                <p className="text-white text-sm">Shoulder Line</p>
+            </div>
+        </div>
+    </CameraActivity>
 );
 
+
+// Eye Contact Training Activity
+const EyeContactTraining = () => {
+    const [targetPosition, setTargetPosition] = useState({ x: 50, y: 50 });
+    const [isRunning, setIsRunning] = useState(false);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        if (isRunning) {
+            intervalRef.current = setInterval(() => {
+                setTargetPosition({
+                    x: Math.random() * 80 + 10, // from 10% to 90%
+                    y: Math.random() * 80 + 10,
+                });
+            }, 3000);
+        } else {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        }
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, [isRunning]);
+
+    return (
+        <CameraActivity title="Eye Contact Training" description="Follow the blue dot with your eyes. Try to keep your head still and only move your eyes.">
+            <div
+                className="absolute w-6 h-6 bg-blue-500 rounded-full transition-all duration-1000 ease-in-out shadow-lg border-2 border-white"
+                style={{
+                    left: `${targetPosition.x}%`,
+                    top: `${targetPosition.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                }}
+            />
+             <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+                <Button onClick={() => setIsRunning(!isRunning)} size="lg">
+                    {isRunning ? <><Pause className="mr-2" /> Stop</> : <><Play className="mr-2"/> Start</>}
+                </Button>
+            </div>
+        </CameraActivity>
+    );
+};
+
 // Speaking Practice Activity Component
-const SpeakingPractice = ({ onOpenChange }: { onOpenChange: (open: boolean) => void }) => {
+const SpeakingPractice = () => {
   const [question, setQuestion] = useState(interviewQuestions[0]);
   const [isRecording, setIsRecording] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -172,7 +273,7 @@ const SpeakingPractice = ({ onOpenChange }: { onOpenChange: (open: boolean) => v
           </Button>
         )}
         <Button onClick={selectNewQuestion} variant="outline" disabled={isRecording || isLoading}>
-            New Question
+            <RefreshCw className="mr-2 h-4 w-4" /> New Question
         </Button>
       </div>
       
@@ -213,12 +314,107 @@ const SpeakingPractice = ({ onOpenChange }: { onOpenChange: (open: boolean) => v
   );
 };
 
+// STAR Method Builder
+const StarMethodBuilder = () => {
+    const [situation, setSituation] = useState('');
+    const [task, setTask] = useState('');
+    const [action, setAction] = useState('');
+    const [result, setResult] = useState('');
+    const [generatedStory, setGeneratedStory] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const { toast } = useToast();
+
+    const handleGenerateStory = async () => {
+        if (!situation || !task || !action || !result) {
+            toast({
+                variant: 'destructive',
+                title: 'Missing Fields',
+                description: 'Please fill out all fields before generating a story.',
+            });
+            return;
+        }
+
+        setIsLoading(true);
+        setGeneratedStory('');
+        try {
+            const response = await starMethodStoryGenerator({ situation, task, action, result });
+            setGeneratedStory(response.story);
+        } catch (error) {
+            console.error("Failed to generate story:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Generation Failed',
+                description: 'There was an error generating your story.',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                    <Lightbulb /> STAR Method Builder
+                </DialogTitle>
+                <DialogDescription>
+                    Structure your accomplishments into compelling stories using the STAR method. Fill in each section and let AI help you craft the perfect narrative.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid md:grid-cols-2 gap-6 py-4">
+                <div className="space-y-4">
+                    <div>
+                        <Label htmlFor="situation" className="text-lg font-semibold">Situation</Label>
+                        <p className="text-sm text-muted-foreground mb-2">Describe the context. Where and when did this take place?</p>
+                        <Textarea id="situation" value={situation} onChange={(e) => setSituation(e.target.value)} placeholder="e.g., At my previous job as a project manager..." />
+                    </div>
+                    <div>
+                        <Label htmlFor="task" className="text-lg font-semibold">Task</Label>
+                        <p className="text-sm text-muted-foreground mb-2">What was your goal or responsibility?</p>
+                        <Textarea id="task" value={task} onChange={(e) => setTask(e.target.value)} placeholder="e.g., My task was to launch a new feature..." />
+                    </div>
+                    <div>
+                        <Label htmlFor="action" className="text-lg font-semibold">Action</Label>
+                        <p className="text-sm text-muted-foreground mb-2">What specific steps did you take?</p>
+                        <Textarea id="action" value={action} onChange={(e) => setAction(e.target.value)} placeholder="e.g., I organized a team, created a timeline..." />
+                    </div>
+                    <div>
+                        <Label htmlFor="result" className="text-lg font-semibold">Result</Label>
+                        <p className="text-sm text-muted-foreground mb-2">What was the outcome? Use numbers if possible.</p>
+                        <Textarea id="result" value={result} onChange={(e) => setResult(e.target.value)} placeholder="e.g., As a result, we increased user engagement by 15%..." />
+                    </div>
+                </div>
+                <div className="space-y-4">
+                    <Button onClick={handleGenerateStory} disabled={isLoading} className="w-full">
+                        <Sparkles className="mr-2" />
+                        {isLoading ? 'Crafting Story...' : 'Refine with AI'}
+                    </Button>
+                    <Card className="h-[calc(100%-4rem)]">
+                        <CardHeader>
+                            <CardTitle>Your Polished Story</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {isLoading ? (
+                                <p className="text-muted-foreground animate-pulse">Generating your story...</p>
+                            ) : generatedStory ? (
+                                <p className="text-sm whitespace-pre-wrap">{generatedStory}</p>
+                            ) : (
+                                <p className="text-muted-foreground">Your refined story will appear here.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        </DialogContent>
+    );
+};
+
 
 const activityComponents: { [key: string]: React.FC<any> } = {
-  PosturePractice: (props) => <PlaceholderActivity title="Posture Practice" {...props} />,
-  EyeContactTraining: (props) => <PlaceholderActivity title="Eye Contact Training" {...props} />,
+  PosturePractice,
+  EyeContactTraining,
   SpeakingPractice,
-  StarMethodBuilder: (props) => <PlaceholderActivity title="STAR Method Builder" {...props} />,
+  StarMethodBuilder,
 };
 
 export default function ImprovePage() {
@@ -280,7 +476,7 @@ export default function ImprovePage() {
 
         {ActivityComponent && (
             <Dialog open={!!activeActivity} onOpenChange={onOpenChange}>
-                <ActivityComponent onOpenChange={onOpenChange} />
+                <ActivityComponent />
             </Dialog>
         )}
       </main>
