@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useMemo } from 'react';
@@ -75,8 +76,8 @@ function UploadPage() {
 
         const videoUrl = URL.createObjectURL(videoFile);
         sessionStorage.setItem('videoUrl', videoUrl);
-        // The transcript is now part of the analysis result
         sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
+        sessionStorage.setItem('analysisType', 'behavioral'); // Set type for dashboard
 
         setProgress(100);
         router.push('/analysis');
