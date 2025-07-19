@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ArrowRight, Bot, UploadCloud } from 'lucide-react';
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +33,18 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const router = useRouter();
   const { toast } = useToast();
+  const container = useRef(null);
+
+  useGSAP(() => {
+    gsap.from(".animate-in", {
+        opacity: 0,
+        y: 20,
+        duration: 0.75,
+        stagger: 0.2,
+        ease: "power3.out",
+      }
+    );
+  }, { scope: container });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -91,18 +105,18 @@ export default function Home() {
   };
   
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 lg:p-8">
-      <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-10 duration-500">
+    <main ref={container} className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 lg:p-8">
+      <div className="w-full max-w-2xl">
         <div className="text-center mb-8">
-            <h1 className="font-headline text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-primary">
+            <h1 className="font-headline text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-primary animate-in">
                 Interview <span className="text-accent">Insights</span>
             </h1>
-            <p className="mt-4 text-lg text-muted-foreground">
+            <p className="mt-4 text-lg text-muted-foreground animate-in">
                 Upload your interview recording and get instant, AI-powered feedback to land your dream job.
             </p>
         </div>
 
-        <Card className="shadow-lg">
+        <Card className="shadow-lg animate-in">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-2xl">
               <Bot className="h-8 w-8 text-accent" />

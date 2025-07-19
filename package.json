@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.1",
     "@genkit-ai/googleai": "^1.14.1",
     "@genkit-ai/next": "^1.14.1",
     "@hookform/resolvers": "^4.1.3",
@@ -43,6 +44,7 @@
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.9.1",
     "genkit": "^1.14.1",
+    "gsap": "^3.12.5",
     "lucide-react": "^0.475.0",
     "next": "15.3.3",
     "patch-package": "^8.0.0",
