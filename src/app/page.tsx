@@ -72,7 +72,7 @@ export default function Home() {
               Ace Your Next Interview
             </h1>
             <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
-              Leverage AI to practice your interview skills, analyze your performance, and get personalized feedback to land your dream job.
+              Leverage AI to practice your interview skills, analyze your performance, and get personalized feedback.
             </p>
           </div>
 
@@ -98,7 +98,7 @@ export default function Home() {
           </div>
         </div>
         <footer className="absolute bottom-4 text-center text-muted-foreground/80 text-sm animate-in">
-            Powered by AI. Built for humans.
+            Powered by SAKSHaM. Built for Everyone.
         </footer>
       </main>
     </div>
