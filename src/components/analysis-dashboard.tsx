@@ -1,35 +1,57 @@
 
 'use client';
 
-import { Lightbulb, FileText, Download, BarChartHorizontal, Video, Mic, UserCheck, CheckCircle, MessageSquareQuote } from 'lucide-react';
+import { Lightbulb, FileText, Download, BarChartHorizontal, Video, Mic, Code, MessageSquareQuote, CheckCircle } from 'lucide-react';
 import type { ReasoningAnalysisOutput } from '@/ai/flows/reasoning-analysis';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+// Extended type for coding analysis
+interface CodingAnalysis {
+    isCorrect: boolean;
+    correctnessDescription: string;
+    efficiency: string;
+    styleAndReadability: string;
+    alternativeApproaches: string;
+}
+
+interface CombinedAnalysis extends ReasoningAnalysisOutput {
+  codingAnalysis?: CodingAnalysis;
+}
 
 interface AnalysisDashboardProps {
   videoUrl: string;
-  analysis: ReasoningAnalysisOutput;
+  analysis: CombinedAnalysis;
 }
 
 const calculateScore = (text: string): number => {
-    const maxLength = 400; // The length of text at which the score is minimal
+    const maxLength = 400; 
     const minScore = 65;
     const maxScore = 95;
-
-    // Clamp the length between 0 and maxLength
     const effectiveLength = Math.max(0, Math.min(text.length, maxLength));
-
-    // Linear interpolation: score decreases as length increases
     const score = maxScore - (effectiveLength / maxLength) * (maxScore - minScore);
-    
     return Math.floor(score);
 }
 
+const CodeBlock = ({ code }: { code: string }) => (
+    <pre className="bg-muted p-4 rounded-md text-sm text-muted-foreground overflow-x-auto">
+        <code>{code}</code>
+    </pre>
+)
+
 export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps) {
   const router = useRouter();
+  const [analysisType, setAnalysisType] = useState('behavioral');
+
+  useEffect(() => {
+    const type = sessionStorage.getItem('analysisType');
+    if (type) setAnalysisType(type);
+  }, []);
+
   const handlePrint = () => {
     window.print();
   };
@@ -147,6 +169,38 @@ export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps
                     </ul>
                 </CardContent>
              </Card>
+
+             {analysis.codingAnalysis && (
+                <>
+                <div className="print-break-after" />
+                <Card className="print-container print-no-break">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><Code className="text-primary"/> Coding Analysis</CardTitle>
+                        <CardDescription>Detailed feedback on your technical solution.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <dl className="space-y-4">
+                            <div>
+                                <dt className="font-semibold text-primary">Correctness</dt>
+                                <dd className="text-sm text-muted-foreground mt-1">{analysis.codingAnalysis.correctnessDescription}</dd>
+                            </div>
+                            <div>
+                                <dt className="font-semibold text-primary">Efficiency (Big O)</dt>
+                                <dd className="text-sm text-muted-foreground mt-1">{analysis.codingAnalysis.efficiency}</dd>
+                            </div>
+                            <div>
+                                <dt className="font-semibold text-primary">Style & Readability</dt>
+                                <dd className="text-sm text-muted-foreground mt-1">{analysis.codingAnalysis.styleAndReadability}</dd>
+                            </div>
+                             <div>
+                                <dt className="font-semibold text-primary">Alternative Approaches</dt>
+                                <dd className="text-sm text-muted-foreground mt-1">{analysis.codingAnalysis.alternativeApproaches}</dd>
+                            </div>
+                        </dl>
+                    </CardContent>
+                </Card>
+                </>
+             )}
 
              <div className="print-break-after" />
 

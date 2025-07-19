@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -17,16 +18,30 @@ function AnalysisPage() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    // Prevent memory leaks on URL.createObjectURL
+    const videoUrlFromSession = sessionStorage.getItem('videoUrl');
+    if (videoUrlFromSession) {
+        setVideoUrl(videoUrlFromSession);
+    }
+    
+    return () => {
+        if (videoUrlFromSession) {
+            URL.revokeObjectURL(videoUrlFromSession);
+        }
+    }
+  }, []);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const storedVideoUrl = sessionStorage.getItem('videoUrl');
         const storedAnalysis = sessionStorage.getItem('analysisResult');
         
-        if (storedVideoUrl && storedAnalysis) {
-          setVideoUrl(storedVideoUrl);
+        if (videoUrl && storedAnalysis) {
           setAnalysis(JSON.parse(storedAnalysis));
+        } else if (!videoUrl) {
+            // If videoUrl is still null, it might be loading, or it might be missing
         } else {
-          // No data found, will redirect
+             setError(true);
         }
       } catch (e) {
         console.error("Failed to parse analysis data from session storage:", e);
@@ -35,7 +50,7 @@ function AnalysisPage() {
         setIsLoading(false);
       }
     }
-  }, []);
+  }, [videoUrl]);
 
   useEffect(() => {
     // Client-side redirect if data is missing after loading
@@ -44,7 +59,7 @@ function AnalysisPage() {
     }
   }, [isLoading, analysis, videoUrl, router]);
 
-  if (isLoading) {
+  if (isLoading || !videoUrl) {
     return (
       <div className="p-4 md:p-8 max-w-7xl mx-auto animate-pulse">
         <div className="flex justify-between items-center mb-8">
@@ -64,7 +79,7 @@ function AnalysisPage() {
     );
   }
 
-  if (error || !analysis || !videoUrl) {
+  if (error || !analysis) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
         <h2 className="text-2xl font-semibold mb-4">No Analysis Found</h2>
