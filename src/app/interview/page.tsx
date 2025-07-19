@@ -4,15 +4,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Mic, Video, PhoneOff, Play, Pause, Send, Bot, MicOff, VideoOff } from 'lucide-react';
+import { ArrowLeft, Mic, Video, PhoneOff, Play, Pause, Send, Bot, MicOff, VideoOff, Volume2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { transcribe } from '@/ai/flows/transcribe-flow';
 import { reasoningAnalysis } from '@/ai/flows/reasoning-analysis';
 import { Progress } from '@/components/ui/progress';
 import { withAuth } from '@/context/auth-context';
+import { textToSpeech } from '@/ai/flows/tts-flow';
 
 const interviewQuestions = [
     "Tell me about yourself.",
@@ -31,8 +31,11 @@ function InterviewPage() {
   const [interviewState, setInterviewState] = useState<InterviewState>('not_started');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [processingState, setProcessingState] = useState<{progress: number, message: string}>({progress: 0, message: ''});
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isAISpeaking, setIsAISpeaking] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   
@@ -70,7 +73,7 @@ function InterviewPage() {
           videoRef.current.srcObject = stream;
         }
 
-        const recorder = new MediaRecorder(stream);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
         mediaRecorderRef.current = recorder;
 
         recorder.ondataavailable = (event) => {
@@ -82,9 +85,8 @@ function InterviewPage() {
         recorder.onstop = async () => {
             setInterviewState('processing');
             const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-            const videoUrl = URL.createObjectURL(videoBlob);
             
-            setProcessingState({progress: 10, message: 'Converting video to audio for transcription...'});
+            setProcessingState({progress: 10, message: 'Preparing your video for analysis...'});
 
             const reader = new FileReader();
             reader.readAsDataURL(videoBlob);
@@ -92,25 +94,22 @@ function InterviewPage() {
                 const videoDataUri = reader.result as string;
                 
                 try {
-                    setProcessingState({progress: 30, message: 'Transcribing your answers... (this may take a moment)'});
-                    const { transcript } = await transcribe({ mediaDataUri: videoDataUri });
+                    setProcessingState({progress: 50, message: 'Analyzing your interview performance...'});
+                    const analysisResult = await reasoningAnalysis({ videoDataUri });
 
-                    if(!transcript || transcript.length < 20) {
+                    if(!analysisResult?.transcript || analysisResult.transcript.length < 10) {
                          toast({
                             variant: 'destructive',
-                            title: 'Transcription Failed',
+                            title: 'Analysis Failed',
                             description: 'Could not generate a transcript. The recording might have been too short or silent.',
                         });
                         setInterviewState('finished');
                         return;
                     }
 
-                    setProcessingState({progress: 70, message: 'Analyzing your interview performance...'});
-                    const analysisResult = await reasoningAnalysis({ videoDataUri, transcript });
-
                     setProcessingState({progress: 90, message: 'Finalizing your report...'});
+                    const videoUrl = URL.createObjectURL(videoBlob);
                     sessionStorage.setItem('videoUrl', videoUrl);
-                    sessionStorage.setItem('transcript', transcript);
                     sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
 
                     setProcessingState({progress: 100, message: 'Redirecting to analysis...'});
@@ -141,7 +140,31 @@ function InterviewPage() {
     setupMedia();
   }, [toast, router]);
 
+  useEffect(() => {
+    if (interviewState === 'in_progress') {
+        const fetchAndPlayAudio = async () => {
+            setIsAISpeaking(true);
+            try {
+                const { audioDataUri } = await textToSpeech({ text: interviewQuestions[currentQuestionIndex] });
+                setAudioUrl(audioDataUri);
+            } catch (error) {
+                console.error("TTS failed:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Audio Error',
+                    description: "Couldn't generate AI voice. Continuing without audio."
+                })
+            } finally {
+                setIsAISpeaking(false);
+            }
+        };
+        fetchAndPlayAudio();
+    }
+  }, [interviewState, currentQuestionIndex, toast]);
+  
+
   const handleNextQuestion = () => {
+    setAudioUrl(null);
     if (currentQuestionIndex < interviewQuestions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
@@ -185,7 +208,7 @@ function InterviewPage() {
                 <div className="flex flex-col items-center justify-center h-full text-center p-4">
                     <Bot className="h-16 w-16 text-primary mb-4"/>
                     <h2 className="text-2xl font-bold">Ready for your Mock Interview?</h2>
-                    <p className="text-muted-foreground mt-2 mb-6">You'll be asked {interviewQuestions.length} questions. The session will be recorded and analyzed.</p>
+                    <p className="text-muted-foreground mt-2 mb-6">You'll be asked {interviewQuestions.length} questions. The AI will speak each question.</p>
                     <Button onClick={handleStartInterview} size="lg" disabled={hasPermission === null}>
                         <Play className="mr-2" /> Start Interview
                     </Button>
@@ -195,8 +218,11 @@ function InterviewPage() {
             return (
                  <div className="flex flex-col items-center justify-center h-full text-center p-4 bg-black/30 rounded-lg">
                     <p className="text-lg text-muted-foreground">Question {currentQuestionIndex + 1} of {interviewQuestions.length}</p>
-                    <h2 className="text-3xl font-bold my-4">"{interviewQuestions[currentQuestionIndex]}"</h2>
-                    <Button onClick={handleNextQuestion} size="lg" className="mt-6">
+                    <div className="flex items-center gap-4 my-4">
+                        {isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse" />}
+                        <h2 className="text-3xl font-bold">"{interviewQuestions[currentQuestionIndex]}"</h2>
+                    </div>
+                    <Button onClick={handleNextQuestion} size="lg" className="mt-6" disabled={isAISpeaking}>
                         {currentQuestionIndex < interviewQuestions.length - 1 ? (
                             <>Next Question <Send className="ml-2"/></>
                         ) : (
@@ -246,6 +272,7 @@ function InterviewPage() {
 
         <div className="relative bg-gray-800 rounded-lg overflow-hidden flex items-center justify-center">
             <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+            {audioUrl && <audio ref={audioRef} src={audioUrl} autoPlay onEnded={() => setAudioUrl(null)}/>}
             {hasPermission === false && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-4">
                     <Alert variant="destructive" className="max-w-sm">
