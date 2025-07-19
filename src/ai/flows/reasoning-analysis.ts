@@ -26,6 +26,7 @@ const ReasoningAnalysisOutputSchema = z.object({
     .describe(
       'The full transcript of the interview, with speakers identified (e.g., "Interviewer:", "Interviewee:").'
     ),
+  interviewSummary: z.string().describe("A brief, one-paragraph summary of the interview's main topics and context."),
   videoAnalysis: z.object({
       posture: z.string().describe("Detailed feedback on the interviewee's posture throughout the interview."),
       bodyLanguage: z.string().describe("Analysis of body language, including gestures, fidgeting, and overall confidence conveyed."),
@@ -36,6 +37,11 @@ const ReasoningAnalysisOutputSchema = z.object({
       pacing: z.string().describe("Analysis of the speech pace, noting if it was too fast, too slow, or varied appropriately."),
       fillerWordCount: z.number().describe("The total count of identified filler words (e.g., 'um', 'ah', 'like')."),
       unprofessionalWordCount: z.number().describe("Count of any words or phrases deemed unprofessional or overly casual."),
+  }),
+  contentAnalysis: z.object({
+      answerClarity: z.string().describe("Feedback on the clarity, structure (e.g., STAR method), and conciseness of the interviewee's answers."),
+      relevance: z.string().describe("Analysis of how relevant and on-topic the answers were to the questions asked."),
+      improvementSuggestions: z.string().describe("Specific examples and suggestions on how the interviewee could have formulated better, more impactful answers."),
   }),
   guidance: z.array(z.string()).describe("A list of 3-5 actionable, prioritized recommendations for improvement based on the overall analysis."),
 });
@@ -55,18 +61,26 @@ First, transcribe the entire video. Enable speaker diarization and label the spe
 
 Then, perform a comprehensive analysis of the **Interviewee's** performance, focusing on the following areas. Be critical and provide constructive, specific feedback.
 
-**1. Video Analysis:**
+**1. Summary:**
+   - Briefly summarize the topics discussed in the interview. What was the context?
+
+**2. Video Analysis:**
    - **Posture:** Analyze their posture. Are they sitting up straight? Are their shoulders back? Do they look engaged or slouched?
    - **Body Language:** Evaluate their gestures, fidgeting, and overall non-verbal cues. Do they appear confident, nervous, or distracted?
    - **Eye Contact:** Assess their eye contact with the camera. Is it steady and confident, or do they frequently look away?
 
-**2. Vocal Analysis:**
+**3. Vocal Analysis:**
    - **Clarity:** How clear and articulate is their speech? Is it mumbled or easy to understand?
    - **Pacing:** Analyze their speaking rate. Is it too rushed, too slow, or well-paced?
    - **Filler Words:** Identify and count the usage of filler words like "um," "uh," "like," "you know," "so," etc.
    - **Unprofessional Words:** Identify and count any overly casual or unprofessional language.
 
-**3. Actionable Guidance:**
+**4. Content Analysis:**
+   - **Answer Clarity & Structure:** How well-structured were their answers? Did they follow a clear logical flow, like the STAR method? Were the answers concise or rambling?
+   - **Relevance:** Were the answers directly relevant to the questions asked?
+   - **Improvement Suggestions:** Provide specific advice on how the content of the answers could be improved. For example, suggest better ways to phrase a response or highlight a key achievement more effectively.
+
+**5. Actionable Guidance:**
    - Based on your full analysis, provide 3-5 specific, prioritized, and actionable recommendations for the interviewee to focus on for their next interview.
 
 Analyze this video:
@@ -74,18 +88,6 @@ Video: {{media url=videoDataUri}}
 
 Provide your output in the structured JSON format.`,
 });
-
-const transcribeFlow = ai.defineFlow(
-    {
-        name: 'transcribeFlow',
-        inputSchema: ReasoningAnalysisInputSchema,
-        outputSchema: ReasoningAnalysisOutputSchema,
-    },
-    async (input) => {
-        const { output } = await prompt(input);
-        return output!;
-    }
-);
 
 
 const reasoningAnalysisFlow = ai.defineFlow(

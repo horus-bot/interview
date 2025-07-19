@@ -1,6 +1,6 @@
 'use client';
 
-import { Lightbulb, FileText, Download, BarChartHorizontal, Video, Mic, UserCheck, CheckCircle } from 'lucide-react';
+import { Lightbulb, FileText, Download, BarChartHorizontal, Video, Mic, UserCheck, CheckCircle, MessageSquareQuote } from 'lucide-react';
 import type { ReasoningAnalysisOutput } from '@/ai/flows/reasoning-analysis';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -123,7 +123,7 @@ export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps
                   <CardTitle className="flex items-center gap-2">
                     <Lightbulb className="text-primary" /> Actionable Guidance
                   </CardTitle>
-                  <CardDescription>Your top priorities for improvement.</CardDescription>
+                  <CardDescription>Your top priorities for improvement based on the full analysis.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-3">
@@ -136,9 +136,57 @@ export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps
                     </ul>
                 </CardContent>
              </Card>
+
+             <div className="print-break-after" />
+
+             <Card className="print-container print-no-break">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="text-primary" /> Interview Transcript
+                </CardTitle>
+                <CardDescription>A full transcript of the interview, separated by speaker.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[40rem] pr-4">
+                  <p className="text-sm whitespace-pre-wrap">{analysis.transcript}</p>
+                </ScrollArea>
+              </CardContent>
+            </Card>
           </div>
           <div className="lg:col-span-1 space-y-8">
-            <Accordion type="multiple" defaultValue={['video-analysis', 'vocal-analysis']} className="w-full space-y-8">
+            <Card className="print-container print-no-break">
+                <CardHeader>
+                    <CardTitle>Interview Summary</CardTitle>
+                    <CardDescription>{analysis.interviewSummary}</CardDescription>
+                </CardHeader>
+            </Card>
+            <Accordion type="multiple" defaultValue={['content-analysis', 'video-analysis', 'vocal-analysis']} className="w-full space-y-8">
+                 <Card className="print-container print-no-break">
+                    <AccordionItem value="content-analysis" className="border-b-0">
+                        <AccordionTrigger className="p-6">
+                            <CardTitle className="flex items-center gap-2">
+                                <MessageSquareQuote className="text-primary" /> Content Analysis
+                            </CardTitle>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-6 pb-6">
+                            <dl className="space-y-4">
+                                <div>
+                                    <dt className="font-semibold text-primary">Answer Clarity & Structure</dt>
+                                    <dd className="text-sm text-muted-foreground mt-1">{analysis.contentAnalysis.answerClarity}</dd>
+                                </div>
+                                <div>
+                                    <dt className="font-semibold text-primary">Relevance of Answers</dt>
+                                    <dd className="text-sm text-muted-foreground mt-1">{analysis.contentAnalysis.relevance}</dd>
+                                </div>
+                                <div>
+                                    <dt className="font-semibold text-primary">Improvement Suggestions</dt>
+                                    <dd className="text-sm text-muted-foreground mt-1">{analysis.contentAnalysis.improvementSuggestions}</dd>
+                                </div>
+                            </dl>
+                        </AccordionContent>
+                    </AccordionItem>
+                 </Card>
+            
                  <Card className="print-container print-no-break">
                     <AccordionItem value="video-analysis" className="border-b-0">
                         <AccordionTrigger className="p-6">
@@ -188,18 +236,6 @@ export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps
                  </Card>
             </Accordion>
             
-            <Card className="print-container">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="text-primary" /> Interview Transcript
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[40rem] pr-4">
-                  <p className="text-sm whitespace-pre-wrap">{analysis.transcript}</p>
-                </ScrollArea>
-              </CardContent>
-            </Card>
           </div>
         </main>
       </div>
