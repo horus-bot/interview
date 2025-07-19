@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Mic, Video, PhoneOff, Play, Pause, Send, Bot } from 'lucide-react';
+import { ArrowLeft, Mic, Video, PhoneOff, Play, Pause, Send, Bot, MicOff, VideoOff } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
