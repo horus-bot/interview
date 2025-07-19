@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-type Stage = 'setup' | 'intro' | 'conceptual' | 'coding' | 'processing' | 'error';
+type Stage = 'setup' | 'connecting' | 'intro' | 'conceptual' | 'coding' | 'processing' | 'error';
 type InterviewerMessage = { speaker: 'ai' | 'user' | 'system'; text: string; audioUrl?: string };
 
 const roles = ["Python Developer", "ML Engineer", "Web Developer", "Data Analyst", "Database Manager"];
@@ -89,6 +89,7 @@ function CodingInterviewPage() {
             return;
         }
         setIsLoading(true);
+        setStage('connecting');
         try {
             const result = await generateCodingQuestions({
                 role: config.role,
@@ -102,9 +103,11 @@ function CodingInterviewPage() {
                 await say(`Hello! Welcome to your coding interview for a ${config.level} ${config.role}. Before we dive into the code, please give me a short introduction about your knowledge in this field.`);
             } else {
                 toast({ variant: 'destructive', title: 'Failed to generate questions.' });
+                setStage('setup');
             }
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not generate interview questions.' });
+            setStage('setup');
         } finally {
             setIsLoading(false);
         }
@@ -139,12 +142,12 @@ function CodingInterviewPage() {
                 return;
             }
 
-            setProcessingState({ progress: 10, message: 'Preparing your video...' });
+            setProcessingState({ progress: 10, message: 'please have some patience respected jury of suprathon' });
             const reader = new FileReader();
             reader.readAsDataURL(videoBlob);
             reader.onloadend = async () => {
                 const videoDataUri = reader.result as string;
-                setProcessingState({ progress: 30, message: 'Analyzing your submission...' });
+                setProcessingState({ progress: 30, message: 'please have some patience respected jury of suprathon' });
                 try {
                     const analysisResult = await analyzeCodingAttempt({
                         videoDataUri,
@@ -200,6 +203,13 @@ function CodingInterviewPage() {
         switch (stage) {
             case 'setup':
                 return <Card className="w-full max-w-lg"><CardHeader><CardTitle>Coding Interview Setup</CardTitle><CardDescription>Configure your technical mock interview.</CardDescription></CardHeader><CardContent className="space-y-4"><Select onValueChange={(v) => setConfig(c => ({...c, role: v}))}><SelectTrigger><SelectValue placeholder="Select a Role" /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><Select onValueChange={(v) => setConfig(c => ({...c, level: v}))}><SelectTrigger><SelectValue placeholder="Select a Level" /></SelectTrigger><SelectContent>{levels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select><Button onClick={handleStartInterview} className="w-full" disabled={isLoading || hasPermission === null}>{isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Starting...</> : (hasPermission === null ? 'Waiting for permissions...': 'Start Interview')}</Button></CardContent></Card>;
+            case 'connecting':
+                return (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
+                        <h2 className="text-2xl font-bold">Waiting for the AI to join the call...</h2>
+                    </div>
+                );
             case 'intro':
             case 'conceptual':
                 return (
@@ -265,7 +275,7 @@ function CodingInterviewPage() {
                     <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
                         <p className="font-semibold">You</p>
                     </div>
-                     {(stage !== 'setup' && stage !== 'processing' && stage !== 'error') && (
+                     {(stage !== 'setup' && stage !== 'connecting' && stage !== 'processing' && stage !== 'error') && (
                         <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
                             <div className="w-2 h-2 bg-white rounded-full"></div>REC
                         </div>

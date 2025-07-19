@@ -33,6 +33,7 @@ type FormValues = z.infer<typeof formSchema>;
 function UploadPage() {
   const [status, setStatus] = useState<'idle' | 'processing' | 'error'>('idle');
   const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
   const router = useRouter();
   const { toast } = useToast();
   const container = useRef(null);
@@ -59,6 +60,7 @@ function UploadPage() {
   const onSubmit = async (data: FormValues) => {
     setStatus('processing');
     setProgress(10);
+    setProgressMessage('please have some patience respected jury of suprathon');
 
     const videoFile = data.video[0];
 
@@ -139,9 +141,8 @@ function UploadPage() {
           <CardContent>
             {status === 'processing' ? (
                 <div className="flex flex-col items-center justify-center space-y-4 p-8">
-                    <p className="text-primary font-medium">Analyzing, please wait...</p>
+                    <p className="text-primary font-medium">{progressMessage}</p>
                     <Progress value={progress} className="w-full" />
-                    <p className="text-sm text-muted-foreground">This may take a few moments depending on the video size.</p>
                 </div>
             ) : (
                 <Form {...form}>

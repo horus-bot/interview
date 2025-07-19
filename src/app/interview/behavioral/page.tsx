@@ -33,6 +33,7 @@ function BehavioralInterviewPage() {
   const [processingState, setProcessingState] = useState<{progress: number, message: string}>({progress: 0, message: ''});
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -47,6 +48,7 @@ function BehavioralInterviewPage() {
       recordedChunksRef.current = [];
       mediaRecorderRef.current.start();
       setInterviewState('in_progress');
+      setIsConnecting(true); // Show connecting message
     } else {
         toast({
             variant: 'destructive',
@@ -86,7 +88,7 @@ function BehavioralInterviewPage() {
             setInterviewState('processing');
             const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
             
-            setProcessingState({progress: 10, message: 'Preparing your video for analysis...'});
+            setProcessingState({progress: 10, message: 'please have some patience respected jury of suprathon'});
 
             const reader = new FileReader();
             reader.readAsDataURL(videoBlob);
@@ -94,7 +96,7 @@ function BehavioralInterviewPage() {
                 const videoDataUri = reader.result as string;
                 
                 try {
-                    setProcessingState({progress: 50, message: 'Analyzing your interview performance...'});
+                    setProcessingState({progress: 50, message: 'please have some patience respected jury of suprathon'});
                     const analysisResult = await reasoningAnalysis({ videoDataUri });
 
                     if(!analysisResult?.transcript || analysisResult.transcript.length < 10) {
@@ -147,9 +149,11 @@ function BehavioralInterviewPage() {
             setIsAISpeaking(true);
             try {
                 const { audioDataUri } = await textToSpeech({ text: interviewQuestions[currentQuestionIndex] });
+                setIsConnecting(false); // AI has "joined"
                 setAudioUrl(audioDataUri);
             } catch (error) {
                 console.error("TTS failed:", error);
+                setIsConnecting(false);
                 toast({
                     variant: 'destructive',
                     title: 'Audio Error',
@@ -216,6 +220,14 @@ function BehavioralInterviewPage() {
                 </div>
             );
         case 'in_progress':
+             if (isConnecting) {
+                return (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
+                        <h2 className="text-2xl font-bold">Waiting for the AI to join the call...</h2>
+                    </div>
+                );
+            }
             return (
                  <div className="flex flex-col items-center justify-center h-full text-center p-4 bg-black/30 rounded-lg">
                     <p className="text-lg text-muted-foreground">Question {currentQuestionIndex + 1} of {interviewQuestions.length}</p>
@@ -291,7 +303,7 @@ function BehavioralInterviewPage() {
              <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
                 <p className="font-semibold">You</p>
             </div>
-             {interviewState === 'in_progress' && (
+             {interviewState === 'in_progress' && !isConnecting && (
                 <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full">
                     <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                     <span className="font-bold text-sm">REC</span>
@@ -324,7 +336,7 @@ function BehavioralInterviewPage() {
             variant="destructive"
             size="icon"
             className="rounded-full w-16 h-14"
-            disabled={interviewState !== 'in_progress'}
+            disabled={interviewState !== 'in_progress' || isConnecting}
         >
             <PhoneOff className="h-6 w-6" />
         </Button>
