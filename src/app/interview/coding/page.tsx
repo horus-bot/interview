@@ -242,8 +242,12 @@ function CodingInterviewPage() {
                 </div>
             </main>
              <footer className="p-4 flex justify-center items-center space-x-4 bg-gray-900/80 border-t border-gray-700">
-                <Button variant={isMicOn ? 'secondary' : 'destructive'} size="icon" className="rounded-full w-14 h-14" onClick={toggleMic} disabled={!hasPermission || stage === 'setup' || stage === 'processing'}><{isMicOn ? 'Mic' : 'MicOff'} className="h-6 w-6" /></Button>
-                <Button variant={isCameraOn ? 'secondary' : 'destructive'} size="icon" className="rounded-full w-14 h-14" onClick={toggleCamera} disabled={!hasPermission || stage === 'setup' || stage === 'processing'}><{isCameraOn ? 'Video' : 'VideoOff'} className="h-6 w-6" /></Button>
+                <Button variant={isMicOn ? 'secondary' : 'destructive'} size="icon" className="rounded-full w-14 h-14" onClick={toggleMic} disabled={!hasPermission || stage === 'setup' || stage === 'processing'}>
+                  {isMicOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
+                </Button>
+                <Button variant={isCameraOn ? 'secondary' : 'destructive'} size="icon" className="rounded-full w-14 h-14" onClick={toggleCamera} disabled={!hasPermission || stage === 'setup' || stage === 'processing'}>
+                  {isCameraOn ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
+                </Button>
             </footer>
         </div>
     );
