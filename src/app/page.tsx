@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef } from 'react';
@@ -24,13 +25,6 @@ export default function Home() {
         duration: 0.8,
         stagger: 0.2,
         ease: 'power3.out',
-      });
-      gsap.to('.hero-glow', {
-        boxShadow: '0 0 80px 30px hsl(var(--primary) / 0.2)',
-        duration: 2,
-        ease: 'power1.inOut',
-        yoyo: true,
-        repeat: -1,
       });
     },
     { scope: container }
