@@ -29,11 +29,14 @@ interface AnalysisDashboardProps {
 }
 
 const calculateScore = (text: string): number => {
-    const maxLength = 400; 
-    const minScore = 65;
-    const maxScore = 95;
+    // Longer feedback means more areas for improvement, thus a lower score.
+    const maxLength = 400; // The length of text that would result in the lowest score.
+    const minScore = 65;   // The score for feedback of maxLength or more.
+    const maxScore = 95;   // The score for empty feedback.
+    
     const effectiveLength = Math.max(0, Math.min(text.length, maxLength));
     const score = maxScore - (effectiveLength / maxLength) * (maxScore - minScore);
+    
     return Math.floor(score);
 }
 
@@ -48,8 +51,11 @@ export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps
   const [analysisType, setAnalysisType] = useState('behavioral');
 
   useEffect(() => {
+    // Read the analysis type from session storage on component mount
     const type = sessionStorage.getItem('analysisType');
-    if (type) setAnalysisType(type);
+    if (type) {
+      setAnalysisType(type);
+    }
   }, []);
 
   const handlePrint = () => {
@@ -170,7 +176,7 @@ export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps
                 </CardContent>
              </Card>
 
-             {analysis.codingAnalysis && (
+             {analysisType === 'coding' && analysis.codingAnalysis && (
                 <>
                 <div className="print-break-after" />
                 <Card className="print-container print-no-break">
@@ -309,3 +315,5 @@ export function AnalysisDashboard({ videoUrl, analysis }: AnalysisDashboardProps
     </>
   );
 }
+
+    
