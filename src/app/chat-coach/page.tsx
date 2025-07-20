@@ -26,7 +26,7 @@ Answer user questions about their interview analysis in a concise, actionable, a
       'Authorization': `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct', // Updated model
       messages: [
         { role: 'system', content: systemPrompt },
         ...history,

@@ -1,12 +1,5 @@
 'use server';
-/**
- * @fileOverview Implements AI flows for conducting and analyzing coding interviews.
- *
- * - generateCodingQuestions: Creates relevant coding questions based on role and level.
- * - analyzeCodingAttempt: Provides a deep analysis of a user's code, explanation, and on-camera performance.
- */
 
-import {ai} from '@/ai/genkit';
 import { z } from 'zod';
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -18,7 +11,7 @@ const groq = new Groq({
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-// Schema for generating coding questions
+// Schema definitions (keep existing schemas)
 const GenerateCodingQuestionsInputSchema = z.object({
   role: z.string().describe('The role for the interview (e.g., Python Developer)'),
   level: z.string().describe('The experience level (Entry Level, Mid Level, Senior Level)'),
@@ -60,6 +53,7 @@ export type CodingQuestion = z.infer<typeof CodingQuestionSchema>;
 export type AnalyzeCodingAttemptInput = z.infer<typeof AnalyzeCodingAttemptInputSchema>;
 export type AnalyzeCodingAttemptOutput = z.infer<typeof AnalyzeCodingAttemptOutputSchema>;
 
+// Fixed: Updated Groq model name
 export async function generateCodingQuestions(input: GenerateCodingQuestionsInput): Promise<GenerateCodingQuestionsOutput> {
   try {
     const prompt = `You are an expert technical interviewer with 10+ years of experience. Generate ${input.count} highly personalized coding interview questions for a ${input.level} ${input.role} position.
@@ -97,8 +91,8 @@ Generate exactly ${input.count} question(s).`;
           content: prompt
         }
       ],
-      model: "llama-3.1-70b-versatile", // Using the versatile Llama model
-      temperature: 0.8, // Higher creativity for more personalized questions
+      model: "meta-llama/llama-4-scout-17b-16e-instruct", // Updated to the new model
+      temperature: 0.8,
       max_tokens: 2000,
     });
 
@@ -107,10 +101,7 @@ Generate exactly ${input.count} question(s).`;
       throw new Error('No response from Groq API');
     }
 
-    // Parse the JSON response
     const parsedResponse = JSON.parse(response);
-    
-    // Validate the response structure
     const validatedOutput = GenerateCodingQuestionsOutputSchema.parse(parsedResponse);
     
     return validatedOutput;
@@ -118,26 +109,113 @@ Generate exactly ${input.count} question(s).`;
   } catch (error) {
     console.error('Error generating coding questions with Groq:', error);
     
-    // Fallback questions if API fails
-    const fallbackQuestions: CodingQuestion[] = [
-      {
-        question: `Design and implement a solution for a common ${input.role} challenge. Explain your approach and write clean, production-ready code.`,
-        topic: "System Design & Implementation"
+    // Enhanced fallback questions based on role and level
+    const getFallbackQuestions = (role: string, level: string): CodingQuestion[] => {
+      const roleQuestions: Record<string, CodingQuestion[]> = {
+        "Python Developer": [
+          {
+            question: "Design a REST API endpoint for a user management system. Include input validation, error handling, and database operations. Show how you would structure the code for maintainability.",
+            topic: "API Development & Architecture"
+          },
+          {
+            question: "Implement a data processing pipeline that handles CSV file uploads, validates the data, and stores it in a database. Include error handling for malformed data.",
+            topic: "Data Processing & Validation"
+          },
+          {
+            question: "Create a caching mechanism for expensive database queries. Explain your strategy for cache invalidation and handling race conditions.",
+            topic: "Performance Optimization"
+          }
+        ],
+        "ML Engineer": [
+          {
+            question: "Design a machine learning pipeline for real-time prediction serving. Include model loading, preprocessing, prediction, and monitoring components.",
+            topic: "ML Pipeline Architecture"
+          },
+          {
+            question: "Implement a feature store system that can handle both batch and streaming data. Show how you would ensure data consistency and versioning.",
+            topic: "Feature Engineering"
+          },
+          {
+            question: "Create a model evaluation framework that compares multiple models and selects the best one based on business metrics.",
+            topic: "Model Evaluation"
+          }
+        ],
+        "Web Developer": [
+          {
+            question: "Build a real-time notification system for a web application. Include WebSocket implementation, message queuing, and user presence detection.",
+            topic: "Real-time Systems"
+          },
+          {
+            question: "Design a shopping cart component with state management, local storage persistence, and optimistic updates. Handle concurrent modifications.",
+            topic: "Frontend State Management"
+          },
+          {
+            question: "Implement a file upload system with progress tracking, chunk uploading, and resume capability. Include both frontend and backend code.",
+            topic: "File Upload Systems"
+          }
+        ],
+        "Data Analyst": [
+          {
+            question: "Create a data analysis script that processes sales data, identifies trends, and generates automated reports. Include data cleaning and visualization.",
+            topic: "Data Analysis & Reporting"
+          },
+          {
+            question: "Build a dashboard that displays KPIs from multiple data sources. Show how you would handle data refresh, caching, and user interactions.",
+            topic: "Dashboard Development"
+          },
+          {
+            question: "Implement a SQL query optimization system that analyzes and improves slow-running queries. Include performance monitoring.",
+            topic: "Query Optimization"
+          }
+        ],
+        "Database Manager": [
+          {
+            question: "Design a database schema for a multi-tenant SaaS application. Include data isolation, indexing strategy, and migration procedures.",
+            topic: "Database Design"
+          },
+          {
+            question: "Implement a database backup and recovery system with point-in-time recovery capability. Show monitoring and alerting components.",
+            topic: "Backup & Recovery"
+          },
+          {
+            question: "Create a database performance monitoring tool that identifies bottlenecks and suggests optimizations. Include query analysis.",
+            topic: "Performance Monitoring"
+          }
+        ]
+      };
+
+      const questions = roleQuestions[role] || roleQuestions["Python Developer"];
+      
+      if (level === "Entry Level") {
+        return questions.map(q => ({
+          ...q,
+          question: q.question + " Focus on basic implementation and explain your reasoning step by step."
+        }));
+      } else if (level === "Senior Level") {
+        return questions.map(q => ({
+          ...q,
+          question: q.question + " Consider scalability, security, and maintainability in your solution. Discuss trade-offs and alternative approaches."
+        }));
       }
-    ];
+      
+      return questions;
+    };
     
+    const fallbackQuestions = getFallbackQuestions(input.role, input.level);
     return { questions: fallbackQuestions.slice(0, input.count) };
   }
 }
 
-// Video/Audio analysis using Google Gemini Flash with compression
+// Fixed: Server-side analysis without browser APIs
 export async function analyzeCodingAttempt(input: AnalyzeCodingAttemptInput): Promise<AnalyzeCodingAttemptOutput> {
   try {
     // Use Gemini 1.5 Flash for cost efficiency
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    // Compress video before sending to Gemini
-    const compressedVideoData = await compressVideo(input.videoDataUri);
+    // Extract base64 data from data URI (already compressed from client)
+    const videoData = input.videoDataUri.includes(',') 
+      ? input.videoDataUri.split(',')[1] 
+      : input.videoDataUri;
     
     const analysisPrompt = `You are an expert technical interviewer analyzing a ${input.level} ${input.role} coding interview submission.
 
@@ -192,15 +270,15 @@ Provide specific, actionable feedback based on both the video performance and co
       },
       {
         inlineData: {
-          mimeType: "video/mp4", // Use MP4 for better compression
-          data: compressedVideoData
+          mimeType: "video/mp4",
+          data: videoData
         }
       }
     ]);
 
     const response = result.response.text();
     
-    // Extract JSON from the response (Gemini might include extra text)
+    // Extract JSON from the response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('Invalid response format from Gemini');
@@ -212,7 +290,7 @@ Provide specific, actionable feedback based on both the video performance and co
   } catch (error) {
     console.error('Error analyzing coding attempt with Gemini Flash:', error);
     
-    // Enhanced fallback analysis with better code evaluation
+    // Enhanced fallback analysis
     const codeAnalysis = analyzeCodeFallback(input.code);
     
     return {
@@ -226,180 +304,6 @@ Provide specific, actionable feedback based on both the video performance and co
         communication: "Video analysis unavailable in fallback mode. Consider practicing verbal explanation of coding thought process during interviews."
       }
     };
-  }
-}
-
-// Video compression function using Canvas and MediaRecorder APIs
-async function compressVideo(videoDataUri: string): Promise<string> {
-  try {
-    // Convert data URI to blob
-    const response = await fetch(videoDataUri);
-    const originalBlob = await response.blob();
-    
-    console.log(`Original video size: ${(originalBlob.size / 1024 / 1024).toFixed(2)} MB`);
-    
-    // Create video element to process the video
-    const video = document.createElement('video');
-    video.src = URL.createObjectURL(originalBlob);
-    video.muted = true;
-    
-    return new Promise((resolve, reject) => {
-      video.onloadedmetadata = async () => {
-        try {
-          // Create canvas for video compression
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d')!;
-          
-          // Set compressed dimensions (reduce resolution for compression)
-          const maxWidth = 640;  // Reduced from original resolution
-          const maxHeight = 480;
-          
-          const aspectRatio = video.videoWidth / video.videoHeight;
-          
-          if (video.videoWidth > video.videoHeight) {
-            canvas.width = Math.min(maxWidth, video.videoWidth);
-            canvas.height = canvas.width / aspectRatio;
-          } else {
-            canvas.height = Math.min(maxHeight, video.videoHeight);
-            canvas.width = canvas.height * aspectRatio;
-          }
-          
-          // Create MediaRecorder for compressed output
-          const stream = canvas.captureStream(15); // 15 FPS for compression
-          
-          // Add compressed audio track
-          const audioContext = new AudioContext();
-          const source = audioContext.createMediaElementSource(video);
-          const destination = audioContext.createMediaStreamDestination();
-          
-          // Add gain node for audio compression
-          const gainNode = audioContext.createGain();
-          gainNode.gain.value = 0.8; // Slightly reduce audio level
-          
-          source.connect(gainNode);
-          gainNode.connect(destination);
-          
-          // Combine video and audio streams
-          const audioTrack = destination.stream.getAudioTracks()[0];
-          if (audioTrack) {
-            stream.addTrack(audioTrack);
-          }
-          
-          const mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'video/mp4; codecs="avc1.42E01E,mp4a.40.2"', // H.264 + AAC for better compression
-            videoBitsPerSecond: 500000,  // 500kbps for video (much lower than default)
-            audioBitsPerSecond: 64000    // 64kbps for audio
-          });
-          
-          const chunks: Blob[] = [];
-          
-          mediaRecorder.ondataavailable = (event) => {
-            chunks.push(event.data);
-          };
-          
-          mediaRecorder.onstop = async () => {
-            const compressedBlob = new Blob(chunks, { type: 'video/mp4' });
-            console.log(`Compressed video size: ${(compressedBlob.size / 1024 / 1024).toFixed(2)} MB`);
-            
-            // Convert back to base64
-            const reader = new FileReader();
-            reader.readAsDataURL(compressedBlob);
-            reader.onloadend = () => {
-              const base64Data = (reader.result as string).split(',')[1];
-              resolve(base64Data);
-            };
-          };
-          
-          // Start recording compressed version
-          mediaRecorder.start();
-          video.play();
-          
-          // Draw frames to canvas for compression
-          const drawFrame = () => {
-            if (!video.paused && !video.ended) {
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              requestAnimationFrame(drawFrame);
-            } else {
-              mediaRecorder.stop();
-              audioContext.close();
-            }
-          };
-          
-          drawFrame();
-          
-          // Auto-stop after reasonable duration (max 2 minutes for interviews)
-          setTimeout(() => {
-            if (mediaRecorder.state === 'recording') {
-              mediaRecorder.stop();
-              video.pause();
-            }
-          }, 120000); // 2 minutes max
-          
-        } catch (error) {
-          reject(error);
-        }
-      };
-      
-      video.onerror = reject;
-    });
-    
-  } catch (error) {
-    console.error('Video compression failed:', error);
-    // Fallback: return original data with basic size reduction
-    const response = await fetch(videoDataUri);
-    const originalBlob = await response.blob();
-    
-    // If original is too large, truncate it
-    if (originalBlob.size > 10 * 1024 * 1024) { // 10MB limit
-      const truncatedBlob = originalBlob.slice(0, 5 * 1024 * 1024); // Keep first 5MB
-      const reader = new FileReader();
-      reader.readAsDataURL(truncatedBlob);
-      
-      return new Promise((resolve) => {
-        reader.onloadend = () => {
-          const base64Data = (reader.result as string).split(',')[1];
-          resolve(base64Data);
-        };
-      });
-    }
-    
-    // Return original if already small enough
-    return videoDataUri.split(',')[1];
-  }
-}
-
-// Alternative simpler compression approach using ffmpeg.wasm
-async function compressVideoSimple(videoDataUri: string): Promise<string> {
-  try {
-    // This is a simpler approach that just reduces quality
-    const response = await fetch(videoDataUri);
-    const originalBlob = await response.blob();
-    
-    // Create a new blob with reduced size by slicing and re-encoding
-    const maxSize = 5 * 1024 * 1024; // 5MB max
-    
-    if (originalBlob.size <= maxSize) {
-      return videoDataUri.split(',')[1];
-    }
-    
-    // Create compressed version by reducing the blob size
-    const compressionRatio = maxSize / originalBlob.size;
-    const endPosition = Math.floor(originalBlob.size * compressionRatio);
-    const compressedBlob = originalBlob.slice(0, endPosition);
-    
-    const reader = new FileReader();
-    reader.readAsDataURL(compressedBlob);
-    
-    return new Promise((resolve) => {
-      reader.onloadend = () => {
-        const base64Data = (reader.result as string).split(',')[1];
-        resolve(base64Data);
-      };
-    });
-    
-  } catch (error) {
-    console.error('Simple compression failed:', error);
-    return videoDataUri.split(',')[1];
   }
 }
 

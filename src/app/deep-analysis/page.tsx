@@ -1,4 +1,3 @@
-
 'use client';
 
 
@@ -100,7 +99,7 @@ ${JSON.stringify(geminiData)}
       'Authorization': `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct', // Updated model
       messages: [
         { role: 'system', content: 'You are a world-class interview analysis assistant.' },
         { role: 'user', content: prompt },
@@ -262,7 +261,7 @@ export default function DeepAnalysisPage() {
                     palette.violet
                   ];
 
-                  function enhanceChartColors(chartData, chartType) {
+                  function enhanceChartColors(chartData: any, chartType: string) {
                     if (!chartData) return chartData;
                     let data = { ...chartData };
                     if (chartType === 'pie') {
@@ -273,7 +272,7 @@ export default function DeepAnalysisPage() {
                       }
                     } else if (chartType === 'line') {
                       if (data.datasets) {
-                        data.datasets = data.datasets.map((ds, i) => ({
+                        data.datasets = data.datasets.map((ds: any, i: number) => ({
                           ...ds,
                           borderColor: lineColors[i % lineColors.length],
                           backgroundColor: lineColors[i % lineColors.length] + '33', // semi-transparent
@@ -283,7 +282,7 @@ export default function DeepAnalysisPage() {
                       }
                     } else if (chartType === 'radar') {
                       if (data.datasets) {
-                        data.datasets = data.datasets.map((ds, i) => ({
+                        data.datasets = data.datasets.map((ds: any, i: number) => ({
                           ...ds,
                           backgroundColor: radarColors[i % radarColors.length] + '33',
                           borderColor: radarColors[i % radarColors.length],
@@ -295,7 +294,7 @@ export default function DeepAnalysisPage() {
                     return data;
                   }
 
-                  function fixChartOptions(options, chartType) {
+                  function fixChartOptions(options: any, chartType: string) {
                     if (!options || typeof options !== 'object') return options;
                     let fixed = Array.isArray(options) ? [...options] : { ...options };
                     // Recursively fix nested objects
@@ -328,7 +327,7 @@ export default function DeepAnalysisPage() {
 
                     // Dynamically ensure all required scales are valid objects with type and axis
                     fixed.scales = fixed.scales || {};
-                    const ensureScale = (key, type, axis) => {
+                    const ensureScale = (key: string, type: string, axis: string) => {
                       if (!fixed.scales[key] || typeof fixed.scales[key] !== 'object') {
                         fixed.scales[key] = { type, axis };
                       } else {
@@ -365,7 +364,7 @@ export default function DeepAnalysisPage() {
                     }
                     return fixed;
                   }
-                  return Array.isArray(analysis.sections) && analysis.sections.map((section, idx) => {
+                  return Array.isArray(analysis.sections) && analysis.sections.map((section: any, idx: number) => {
                     // Split text into paragraphs for better readability
                     const paragraphs = section.text
                       ? section.text.split(/\n+|(?<=\.)\s{2,}/g).filter(Boolean)
@@ -378,7 +377,7 @@ export default function DeepAnalysisPage() {
                         )}
                         <div className="mb-4 space-y-4">
                           {paragraphs.length > 0
-                            ? paragraphs.map((para, i) => (
+                            ? paragraphs.map((para: string, i: number) => (
                                 <p key={i} className="text-base md:text-lg text-foreground font-sans leading-relaxed indent-6">
                                   {para.trim()}
                                 </p>
@@ -436,10 +435,10 @@ export default function DeepAnalysisPage() {
                     { label: 'Answer Structure', key: 'answerStructure' },
                   ];
                   // Fallback: generate random scores if not present in Gemini data
-                  function getScore(key) {
+                  function getScore(key: string) {
                     // Try to find a value in geminiData (flattened search)
                     let val = undefined;
-                    function search(obj) {
+                    function search(obj: any) {
                       if (!obj || typeof obj !== 'object') return;
                       if (key in obj && typeof obj[key] === 'number') val = obj[key];
                       for (const k in obj) search(obj[k]);
