@@ -115,3 +115,5 @@ temp/
 # Ignore local config
 *.local.js
 *.local.ts
+
+certificates

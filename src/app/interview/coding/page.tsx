@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PermissionRequest } from '@/components/PermissionRequest';
+
 type Stage = 'setup' | 'connecting' | 'intro' | 'conceptual' | 'coding' | 'processing' | 'error';
 type InterviewerMessage = { speaker: 'ai' | 'user' | 'system'; text: string; audioUrl?: string };
 
@@ -35,14 +36,14 @@ function CodingInterviewPage() {
     const [hasPermission, setHasPermission] = useState<boolean | null>(null);
     const [isMicOn, setIsMicOn] = useState(true);
     const [isCameraOn, setIsCameraOn] = useState(true);
-    const [audioEnabled, setAudioEnabled] = useState(false); // User-controlled audio
+    const [audioEnabled, setAudioEnabled] = useState(false);
     const [ttsReady, setTtsReady] = useState(false);
     const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+    const [isRecording, setIsRecording] = useState(false);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordedChunksRef = useRef<Blob[]>([]);
-    const audioRef = useRef<HTMLAudioElement>(null);
 
     const { toast } = useToast();
     const router = useRouter();
@@ -62,45 +63,89 @@ function CodingInterviewPage() {
         
         initTTS();
     }, []);
-    
-    // Media Setup Effect
-    useEffect(() => {
-        const setupMedia = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                setHasPermission(true);
-                setMediaStream(stream);
-                
-                if (videoRef.current) videoRef.current.srcObject = stream;
-                
-                const recorder = new MediaRecorder(stream, { 
-                    mimeType: 'video/webm; codecs=vp8,opus',
-                    videoBitsPerSecond: 1000000,
-                    audioBitsPerSecond: 128000
-                });
-                mediaRecorderRef.current = recorder;
 
-                recorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        recordedChunksRef.current.push(event.data);
-                    }
-                };
+    // Handle successful permission grant
+    const handlePermissionGranted = useCallback((stream: MediaStream) => {
+        console.log('Permission granted, setting up media stream');
+        setHasPermission(true);
+        setMediaStream(stream);
+        
+        if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            console.log('Video element srcObject set');
+        }
 
+        // Set up MediaRecorder
+        try {
+            const recorder = new MediaRecorder(stream, { 
+                mimeType: 'video/webm; codecs=vp8,opus',
+                videoBitsPerSecond: 1000000,
+                audioBitsPerSecond: 128000
+            });
+            
+            mediaRecorderRef.current = recorder;
+            console.log('MediaRecorder created successfully');
+
+            recorder.ondataavailable = (event) => {
+                console.log('Data available:', event.data.size, 'bytes');
+                if (event.data.size > 0) {
+                    recordedChunksRef.current.push(event.data);
+                }
+            };
+
+            recorder.onstart = () => {
+                console.log('Recording started');
+                setIsRecording(true);
+                recordedChunksRef.current = []; // Clear previous chunks
+            };
+
+            recorder.onstop = () => {
+                console.log('Recording stopped. Total chunks:', recordedChunksRef.current.length);
+                setIsRecording(false);
+            };
+
+            recorder.onerror = (event) => {
+                console.error('MediaRecorder error:', event);
                 toast({
-                    title: 'Camera & Microphone Ready',
-                    description: 'You can now start your coding interview.',
+                    variant: 'destructive',
+                    title: 'Recording Error',
+                    description: 'Failed to record video. Please try again.',
                 });
-            } catch (error) {
-                setHasPermission(false);
-                toast({ variant: 'destructive', title: 'Media Access Denied', description: 'Camera and microphone are required.' });
+            };
+
+        } catch (error) {
+            console.error('Error creating MediaRecorder:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Setup Error',
+                description: 'Failed to set up recording. Please refresh and try again.',
+            });
+        }
+
+        toast({
+            title: 'Camera & Microphone Ready',
+            description: 'You can now start your coding interview.',
+        });
+    }, [toast]);
+
+    // Handle permission error
+    const handlePermissionError = useCallback((error: string) => {
+        console.error('Permission error:', error);
+        setHasPermission(false);
+    }, []);
+
+    // Cleanup media stream on unmount
+    useEffect(() => {
+        return () => {
+            if (mediaStream) {
+                console.log('Cleaning up media stream');
+                mediaStream.getTracks().forEach(track => track.stop());
             }
         };
-        setupMedia();
-    }, [toast]);
+    }, [mediaStream]);
     
     const say = useCallback(async (text: string) => {
         if (!audioEnabled || !ttsReady) {
-            // Just add message to UI without speaking
             setMessages(prev => [...prev, { speaker: 'ai', text, audioUrl: "silent" }]);
             return;
         }
@@ -108,17 +153,13 @@ function CodingInterviewPage() {
         setIsAISpeaking(true);
         try {
             const result = await textToSpeech({ text });
-            
-            // Add message to UI
             setMessages(prev => [...prev, { speaker: 'ai', text, audioUrl: result.success ? "spoken" : "silent" }]);
             
             if (result.success) {
-                // Set up timeout as fallback
                 const speechTimeout = setTimeout(() => {
                     setIsAISpeaking(false);
                 }, Math.max(text.length * 80, 3000));
                 
-                // Check if speech is still playing
                 const checkSpeechEnd = () => {
                     if (window.responsiveVoice && window.responsiveVoice.isPlaying()) {
                         setTimeout(checkSpeechEnd, 500);
@@ -196,24 +237,50 @@ function CodingInterviewPage() {
             toast({ variant: 'destructive', title: 'Setup Incomplete', description: 'Please select a role and level.' });
             return;
         }
+
+        if (!mediaRecorderRef.current) {
+            toast({ variant: 'destructive', title: 'Recording Not Ready', description: 'Please ensure camera permissions are granted.' });
+            return;
+        }
+
         setIsLoading(true);
         setStage('connecting');
+        
         try {
             const result = await generateCodingQuestions({
                 role: config.role,
                 level: config.level,
                 count: parseInt(config.numQuestions, 10),
             });
+            
             if (result.questions.length > 0) {
                 setQuestions(result.questions);
                 setStage('intro');
-                mediaRecorderRef.current?.start();
+                
+                // Start recording
+                console.log('Starting recording...');
+                try {
+                    mediaRecorderRef.current.start(1000); // Record in 1-second chunks
+                    console.log('MediaRecorder.start() called');
+                } catch (error) {
+                    console.error('Error starting recorder:', error);
+                    toast({
+                        variant: 'destructive',
+                        title: 'Recording Failed',
+                        description: 'Could not start recording. Please refresh and try again.',
+                    });
+                    setStage('setup');
+                    setIsLoading(false);
+                    return;
+                }
+                
                 await say(`Hello! Welcome to your coding interview for a ${config.level} ${config.role}. Before we dive into the code, please give me a short introduction about your knowledge in this field.`);
             } else {
                 toast({ variant: 'destructive', title: 'Failed to generate questions.' });
                 setStage('setup');
             }
         } catch (error) {
+            console.error('Error in handleStartInterview:', error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not generate interview questions.' });
             setStage('setup');
         } finally {
@@ -222,7 +289,7 @@ function CodingInterviewPage() {
     };
     
     const handleNextStage = async () => {
-        if(isAISpeaking) return;
+        if (isAISpeaking) return;
 
         if (stage === 'intro') {
             setStage('conceptual');
@@ -236,26 +303,55 @@ function CodingInterviewPage() {
     };
 
     const handleFinishInterview = async () => {
-        if (!mediaRecorderRef.current) return;
+        if (!mediaRecorderRef.current || !isRecording) {
+            toast({
+                variant: 'destructive',
+                title: 'Recording Error',
+                description: 'No active recording found. Please try again.',
+            });
+            return;
+        }
         
+        console.log('Stopping recording...');
         setStage('processing');
         mediaRecorderRef.current.stop();
 
+        // Wait a bit for the onstop event to fire and collect all chunks
         setTimeout(async () => {
+            console.log('Processing recorded chunks:', recordedChunksRef.current.length);
+            
+            if (recordedChunksRef.current.length === 0) {
+                console.error('No recorded chunks available');
+                toast({ 
+                    variant: 'destructive', 
+                    title: 'Recording Error', 
+                    description: 'No recording data found. Please try again.' 
+                });
+                setStage('setup');
+                return;
+            }
+
             const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-            if(videoBlob.size === 0) {
-                toast({ variant: 'destructive', title: 'Recording Error', description: 'The recording is empty. Please try again.' });
+            console.log('Created video blob, size:', videoBlob.size, 'bytes');
+            
+            if (videoBlob.size === 0) {
+                console.error('Video blob is empty');
+                toast({ 
+                    variant: 'destructive', 
+                    title: 'Recording Error', 
+                    description: 'The recording is empty. Please try again.' 
+                });
                 setStage('setup');
                 return;
             }
 
             const reader = new FileReader();
-            reader.readAsDataURL(videoBlob);
-            
             reader.onload = async () => {
                 try {
                     setProcessingState({ progress: 30, message: 'Analyzing your code and performance...' });
                     const videoDataUri = reader.result as string;
+                    console.log('Video data URI created, length:', videoDataUri.length);
+                    
                     const analysisResult = await analyzeCodingAttempt({
                         videoDataUri,
                         question: questions[currentQuestionIndex].question,
@@ -272,68 +368,50 @@ function CodingInterviewPage() {
 
                     setProcessingState({ progress: 100, message: 'Complete!' });
                     router.push('/analysis');
-                } catch (e) {
-                    toast({ variant: 'destructive', title: 'Analysis Failed', description: 'Could not analyze your submission.' });
+                } catch (error) {
+                    console.error('Analysis failed:', error);
+                    toast({ 
+                        variant: 'destructive', 
+                        title: 'Analysis Failed', 
+                        description: 'Could not analyze your submission.' 
+                    });
                     setStage('error');
                 }
-            }
-        }, 500);
+            };
+            
+            reader.onerror = () => {
+                console.error('FileReader error');
+                toast({ 
+                    variant: 'destructive', 
+                    title: 'Processing Error', 
+                    description: 'Could not process the recording.' 
+                });
+                setStage('error');
+            };
+            
+            reader.readAsDataURL(videoBlob);
+        }, 1000); // Give more time for chunks to be collected
     };
-    
-    // Handle successful permission grant
-    const handlePermissionGranted = useCallback((stream: MediaStream) => {
-        setHasPermission(true);
-        setMediaStream(stream);
-        
-        if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-        }
-
-        const recorder = new MediaRecorder(stream, { 
-            mimeType: 'video/webm; codecs=vp8,opus',
-            videoBitsPerSecond: 1000000,
-            audioBitsPerSecond: 128000
-        });
-        mediaRecorderRef.current = recorder;
-
-        recorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                recordedChunksRef.current.push(event.data);
-            }
-        };
-
-        toast({
-            title: 'Camera & Microphone Ready',
-            description: 'You can now start your coding interview.',
-        });
-    }, [toast]);
-
-    // Handle permission error
-    const handlePermissionError = useCallback((error: string) => {
-        setHasPermission(false);
-        console.error('Permission error:', error);
-    }, []);
-
-    // Cleanup media stream on unmount
-    useEffect(() => {
-        return () => {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-            }
-        };
-    }, [mediaStream]);
 
     const toggleMic = () => {
         if (mediaStream) {
-            mediaStream.getAudioTracks().forEach(track => track.enabled = !isMicOn);
+            const audioTracks = mediaStream.getAudioTracks();
+            audioTracks.forEach(track => {
+                track.enabled = !isMicOn;
+            });
             setIsMicOn(!isMicOn);
+            console.log('Microphone toggled:', !isMicOn);
         }
     };
 
     const toggleCamera = () => {
         if (mediaStream) {
-            mediaStream.getVideoTracks().forEach(track => track.enabled = !isCameraOn);
+            const videoTracks = mediaStream.getVideoTracks();
+            videoTracks.forEach(track => {
+                track.enabled = !isCameraOn;
+            });
             setIsCameraOn(!isCameraOn);
+            console.log('Camera toggled:', !isCameraOn);
         }
     };
 
@@ -383,6 +461,20 @@ function CodingInterviewPage() {
                                     {ttsReady ? '(Audio ready)' : '(Loading audio...)'}
                                 </span>
                             </div>
+
+                            {/* Media Status Indicator */}
+                            <div className="text-center mb-4">
+                                <div className="flex items-center justify-center gap-4">
+                                    <div className="flex items-center gap-1">
+                                        <div className={`w-2 h-2 rounded-full ${hasPermission ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                                        <span className="text-sm">Camera & Mic</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <div className={`w-2 h-2 rounded-full ${mediaRecorderRef.current ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                                        <span className="text-sm">Recording Ready</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div className="grid gap-4">
@@ -417,11 +509,24 @@ function CodingInterviewPage() {
                             </div>
                         </div>
                         
-                        <Button onClick={handleStartInterview} className="w-full" size="lg" disabled={isLoading}>
-                            {isLoading ? <><Loader2 className="mr-2 animate-spin"/> Generating Questions...</> : <>Start Interview</>}
+                        <Button 
+                            onClick={handleStartInterview} 
+                            className="w-full" 
+                            size="lg" 
+                            disabled={isLoading || !hasPermission || !mediaRecorderRef.current}
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 animate-spin"/> 
+                                    Generating Questions...
+                                </>
+                            ) : (
+                                <>Start Interview</>
+                            )}
                         </Button>
                     </div>
                 );
+
             case 'connecting':
                 return (
                     <div className="flex flex-col items-center justify-center h-full text-center p-4">
@@ -430,6 +535,7 @@ function CodingInterviewPage() {
                         {audioEnabled && <p className="text-sm text-muted-foreground mt-2">Listen for the introduction...</p>}
                     </div>
                 );
+
             case 'intro':
             case 'conceptual':
                 return (
@@ -481,6 +587,7 @@ function CodingInterviewPage() {
                         </Button>
                     </div>
                 );
+
             case 'coding':
                 return (
                     <div className="p-4 h-full flex flex-col">
@@ -515,17 +622,37 @@ function CodingInterviewPage() {
                                     placeholder="Type your code here..." 
                                     className="flex-grow font-mono text-sm resize-none" 
                                 />
-                                <Button onClick={handleFinishInterview} className="w-full mt-4">
-                                    <Send className="mr-2"/>Finish & Analyze
+                                <Button 
+                                    onClick={handleFinishInterview} 
+                                    className="w-full mt-4"
+                                    disabled={!isRecording}
+                                >
+                                    <Send className="mr-2"/>
+                                    {isRecording ? 'Finish & Analyze' : 'Recording Not Active'}
                                 </Button>
                             </CardContent>
                         </Card>
                     </div>
                 );
+
             case 'processing':
-                return <div className="flex flex-col items-center justify-center h-full text-center p-4"><h2 className="text-2xl font-bold mb-4">{processingState.message}</h2><Progress value={processingState.progress} className="w-full max-w-md"/></div>;
+                return (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <h2 className="text-2xl font-bold mb-4">{processingState.message}</h2>
+                        <Progress value={processingState.progress} className="w-full max-w-md"/>
+                    </div>
+                );
+
             case 'error':
-                 return <div className="flex flex-col items-center justify-center h-full text-center p-4"><h2 className="text-2xl font-bold">Analysis Failed!</h2><p className="text-muted-foreground mt-2 mb-6">Something went wrong. Would you like to retry?</p><Button onClick={() => window.location.reload()} size="lg"><Play className="mr-2"/> Restart Interview</Button></div>;
+                return (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <h2 className="text-2xl font-bold">Analysis Failed!</h2>
+                        <p className="text-muted-foreground mt-2 mb-6">Something went wrong. Would you like to retry?</p>
+                        <Button onClick={() => window.location.reload()} size="lg">
+                            <Play className="mr-2"/> Restart Interview
+                        </Button>
+                    </div>
+                );
         }
     };
 
@@ -538,7 +665,7 @@ function CodingInterviewPage() {
                 <div className="text-lg font-semibold flex items-center gap-2">
                     <Code /> 
                     Coding Mock Interview
-                    {(stage !== 'setup' && stage !== 'connecting' && stage !== 'processing' && stage !== 'error') && (
+                    {isRecording && (
                         <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">
                             RECORDING
                         </span>
@@ -560,13 +687,14 @@ function CodingInterviewPage() {
                                 <p className="font-semibold">You</p>
                             </div>
                             
-                            {(stage !== 'setup' && stage !== 'connecting' && stage !== 'processing' && stage !== 'error') && (
+                            {isRecording && (
                                 <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
-                                    <div className="w-2 h-2 bg-white rounded-full"></div>REC
+                                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                                    REC
                                 </div>
                             )}
                             
-                            {(stage !== 'setup' && stage !== 'connecting' && stage !== 'processing' && stage !== 'error') && (
+                            {isRecording && (
                                 <div className="absolute top-4 left-4 bg-red-600/90 text-white px-3 py-2 rounded-lg">
                                     <div className="flex items-center gap-2 text-sm font-medium">
                                         <AlertTriangle className="h-4 w-4" />
@@ -585,12 +713,24 @@ function CodingInterviewPage() {
                 </div>
             </main>
             
-             <footer className="p-4 flex justify-center items-center space-x-4 bg-gray-900/80 border-t border-gray-700">
-                <Button variant={isMicOn ? 'secondary' : 'destructive'} size="icon" className="rounded-full w-14 h-14" onClick={toggleMic} disabled={!hasPermission || stage === 'setup' || stage === 'processing'}>
-                  {isMicOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
+            <footer className="p-4 flex justify-center items-center space-x-4 bg-gray-900/80 border-t border-gray-700">
+                <Button 
+                    variant={isMicOn ? 'secondary' : 'destructive'} 
+                    size="icon" 
+                    className="rounded-full w-14 h-14" 
+                    onClick={toggleMic} 
+                    disabled={!hasPermission || stage === 'setup' || stage === 'processing'}
+                >
+                    {isMicOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
                 </Button>
-                <Button variant={isCameraOn ? 'secondary' : 'destructive'} size="icon" className="rounded-full w-14 h-14" onClick={toggleCamera} disabled={!hasPermission || stage === 'setup' || stage === 'processing'}>
-                  {isCameraOn ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
+                <Button 
+                    variant={isCameraOn ? 'secondary' : 'destructive'} 
+                    size="icon" 
+                    className="rounded-full w-14 h-14" 
+                    onClick={toggleCamera} 
+                    disabled={!hasPermission || stage === 'setup' || stage === 'processing'}
+                >
+                    {isCameraOn ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
                 </Button>
             </footer>
         </div>
