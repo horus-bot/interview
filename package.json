@@ -45,6 +45,7 @@
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.9.1",
     "genkit": "^1.14.1",
+    "groq-sdk": "^0.27.0",
     "gsap": "^3.12.5",
     "lucide-react": "^0.475.0",
     "next": "15.3.3",

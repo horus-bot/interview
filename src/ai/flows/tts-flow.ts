@@ -1,18 +1,6 @@
+'use client';
 
-'use server';
-
-/**
- * @fileOverview An AI flow to convert text to speech.
- *
- * - textToSpeech - A function that handles the text-to-speech conversion.
- * - TextToSpeechInput - The input type for the textToSpeech function.
- * - TextToSpeechOutput - The return type for the textToSpeech function.
- */
-
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
-import wav from 'wav';
-import { googleAI } from '@genkit-ai/googleai';
+import { z } from 'zod';
 
 const TextToSpeechInputSchema = z.object({
   text: z.string().describe('The text to be converted to speech.'),
@@ -22,77 +10,192 @@ export type TextToSpeechInput = z.infer<typeof TextToSpeechInputSchema>;
 const TextToSpeechOutputSchema = z.object({
   audioDataUri: z
     .string()
-    .describe(
-      "The generated speech as a WAV audio file, encoded as a data URI. Expected format: 'data:audio/wav;base64,<encoded_data>'."
-    ),
+    .describe("A placeholder audio data URI since ResponsiveVoice plays directly."),
+  success: z.boolean().describe("Whether TTS was successful")
 });
 export type TextToSpeechOutput = z.infer<typeof TextToSpeechOutputSchema>;
 
-export async function textToSpeech(input: TextToSpeechInput): Promise<TextToSpeechOutput> {
-  return textToSpeechFlow(input);
-}
+// More robust ResponsiveVoice loading
+let isResponsiveVoiceLoaded = false;
+let loadingPromise: Promise<void> | null = null;
 
-async function toWav(
-  pcmData: Buffer,
-  channels = 1,
-  rate = 24000,
-  sampleWidth = 2
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const writer = new wav.Writer({
-      channels,
-      sampleRate: rate,
-      bitDepth: sampleWidth * 8,
-    });
+const loadResponsiveVoice = (): Promise<void> => {
+  // Return existing loading promise if already loading
+  if (loadingPromise) {
+    return loadingPromise;
+  }
 
-    let bufs: any[] = [];
-    writer.on('error', reject);
-    writer.on('data', function (d) {
-      bufs.push(d);
-    });
-    writer.on('end', function () {
-      resolve(Buffer.concat(bufs).toString('base64'));
-    });
+  // Return resolved promise if already loaded
+  if (isResponsiveVoiceLoaded && window.responsiveVoice) {
+    return Promise.resolve();
+  }
 
-    writer.write(pcmData);
-    writer.end();
-  });
-}
-
-
-const textToSpeechFlow = ai.defineFlow(
-  {
-    name: 'textToSpeechFlow',
-    inputSchema: TextToSpeechInputSchema,
-    outputSchema: TextToSpeechOutputSchema,
-  },
-  async (input) => {
-    const { media } = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-preview-tts'),
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Algenib' }, // A calm, professional male voice
-          },
-        },
-      },
-      prompt: input.text,
-    });
-    
-    if (!media) {
-      throw new Error('No media returned from TTS model');
+  loadingPromise = new Promise((resolve, reject) => {
+    // Check if script already exists
+    const existingScript = document.querySelector('script[src*="responsivevoice"]');
+    if (existingScript && window.responsiveVoice) {
+      isResponsiveVoiceLoaded = true;
+      loadingPromise = null;
+      resolve();
+      return;
     }
 
-    const audioBuffer = Buffer.from(
-      media.url.substring(media.url.indexOf(',') + 1),
-      'base64'
-    );
-    
-    const wavBase64 = await toWav(audioBuffer);
+    // Remove existing script if it exists but ResponsiveVoice is not available
+    if (existingScript) {
+      existingScript.remove();
+    }
 
+    const script = document.createElement('script');
+    script.src = 'https://code.responsivevoice.org/responsivevoice.js';
+    script.async = true;
+    
+    const timeoutId = setTimeout(() => {
+      script.remove();
+      loadingPromise = null;
+      reject(new Error('ResponsiveVoice loading timeout'));
+    }, 10000); // 10 second timeout
+
+    script.onload = () => {
+      clearTimeout(timeoutId);
+      // Wait for ResponsiveVoice to fully initialize
+      let attempts = 0;
+      const checkResponsiveVoice = () => {
+        attempts++;
+        if (window.responsiveVoice && typeof window.responsiveVoice.speak === 'function') {
+          isResponsiveVoiceLoaded = true;
+          loadingPromise = null;
+          console.log('ResponsiveVoice loaded successfully');
+          resolve();
+        } else if (attempts < 20) { // Try for 2 seconds
+          setTimeout(checkResponsiveVoice, 100);
+        } else {
+          loadingPromise = null;
+          reject(new Error('ResponsiveVoice failed to initialize properly'));
+        }
+      };
+      checkResponsiveVoice();
+    };
+
+    script.onerror = () => {
+      clearTimeout(timeoutId);
+      script.remove();
+      loadingPromise = null;
+      reject(new Error('Failed to load ResponsiveVoice script'));
+    };
+
+    document.head.appendChild(script);
+  });
+
+  return loadingPromise;
+};
+
+// Enhanced speech function with better error handling
+export async function textToSpeech(input: TextToSpeechInput): Promise<TextToSpeechOutput> {
+  try {
+    console.log('Starting TTS for:', input.text.substring(0, 50) + '...');
+    
+    await loadResponsiveVoice();
+    
+    if (window.responsiveVoice && typeof window.responsiveVoice.speak === 'function') {
+      // Cancel any current speech first
+      try {
+        if (window.responsiveVoice.isPlaying && window.responsiveVoice.isPlaying()) {
+          window.responsiveVoice.cancel();
+          // Wait a bit for cancellation to complete
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (cancelError) {
+        console.warn('Error canceling previous speech:', cancelError);
+      }
+      
+      return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Speech generation timeout'));
+        }, 30000); // 30 second timeout
+
+        try {
+          window.responsiveVoice.speak(input.text, "UK English Male", {
+            rate: 0.9,
+            pitch: 1,
+            volume: 1,
+            onstart: () => {
+              console.log('Speech started successfully');
+              clearTimeout(timeoutId);
+              resolve({
+                audioDataUri: "data:audio/wav;base64,responsivevoice_success",
+                success: true
+              });
+            },
+            onend: () => {
+              console.log('Speech completed');
+            },
+            onerror: (error) => {
+              console.error("ResponsiveVoice speaking error:", error);
+              clearTimeout(timeoutId);
+              reject(new Error('ResponsiveVoice speaking failed: ' + error));
+            }
+          });
+
+          // Fallback resolve in case onstart doesn't fire
+          setTimeout(() => {
+            if (window.responsiveVoice.isPlaying && window.responsiveVoice.isPlaying()) {
+              clearTimeout(timeoutId);
+              resolve({
+                audioDataUri: "data:audio/wav;base64,responsivevoice_success",
+                success: true
+              });
+            }
+          }, 500);
+
+        } catch (speakError) {
+          clearTimeout(timeoutId);
+          reject(new Error('Error calling ResponsiveVoice speak: ' + speakError));
+        }
+      });
+    } else {
+      throw new Error('ResponsiveVoice not properly initialized');
+    }
+  } catch (error) {
+    console.error('TTS failed:', error);
     return {
-      audioDataUri: `data:audio/wav;base64,${wavBase64}`,
+      audioDataUri: "data:audio/wav;base64,fallback_error",
+      success: false
     };
   }
-);
+}
+
+// Utility function to check if TTS is ready
+export function isTTSReady(): boolean {
+  return isResponsiveVoiceLoaded && 
+         window.responsiveVoice && 
+         typeof window.responsiveVoice.speak === 'function';
+}
+
+// Utility function to stop current speech
+export function stopSpeech(): void {
+  try {
+    if (window.responsiveVoice && window.responsiveVoice.cancel) {
+      window.responsiveVoice.cancel();
+    }
+  } catch (error) {
+    console.error('Error stopping speech:', error);
+  }
+}
+
+// Add type declaration for ResponsiveVoice
+declare global {
+  interface Window {
+    responsiveVoice: {
+      speak: (text: string, voice: string, options?: {
+        rate?: number;
+        pitch?: number;
+        volume?: number;
+        onstart?: () => void;
+        onend?: () => void;
+        onerror?: (error: any) => void;
+      }) => void;
+      cancel: () => void;
+      isPlaying: () => boolean;
+    };
+  }
+}

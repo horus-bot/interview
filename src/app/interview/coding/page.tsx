@@ -1,21 +1,20 @@
-
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Mic, Video, Send, Bot, Code, Loader2, Volume2, MicOff, VideoOff, Play, Info } from 'lucide-react';
+import { ArrowLeft, Mic, Video, Send, Bot, Code, Loader2, Volume2, VolumeX, MicOff, VideoOff, Play, Info, AlertTriangle, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { withAuth } from '@/context/auth-context';
 import { generateCodingQuestions, analyzeCodingAttempt, CodingQuestion } from '@/ai/flows/coding-interview-flow';
-import { textToSpeech } from '@/ai/flows/tts-flow';
+import { textToSpeech, stopSpeech, isTTSReady } from '@/ai/flows/tts-flow';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-
+import { PermissionRequest } from '@/components/PermissionRequest';
 type Stage = 'setup' | 'connecting' | 'intro' | 'conceptual' | 'coding' | 'processing' | 'error';
 type InterviewerMessage = { speaker: 'ai' | 'user' | 'system'; text: string; audioUrl?: string };
 
@@ -36,6 +35,9 @@ function CodingInterviewPage() {
     const [hasPermission, setHasPermission] = useState<boolean | null>(null);
     const [isMicOn, setIsMicOn] = useState(true);
     const [isCameraOn, setIsCameraOn] = useState(true);
+    const [audioEnabled, setAudioEnabled] = useState(false); // User-controlled audio
+    const [ttsReady, setTtsReady] = useState(false);
+    const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -44,6 +46,22 @@ function CodingInterviewPage() {
 
     const { toast } = useToast();
     const router = useRouter();
+
+    // Initialize TTS when component mounts
+    useEffect(() => {
+        const initTTS = async () => {
+            try {
+                await textToSpeech({ text: "TTS initialization" });
+                setTtsReady(true);
+                console.log('TTS initialized successfully');
+            } catch (error) {
+                console.warn('TTS initialization failed:', error);
+                setTtsReady(false);
+            }
+        };
+        
+        initTTS();
+    }, []);
     
     // Media Setup Effect
     useEffect(() => {
@@ -51,9 +69,15 @@ function CodingInterviewPage() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 setHasPermission(true);
+                setMediaStream(stream);
+                
                 if (videoRef.current) videoRef.current.srcObject = stream;
                 
-                const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                const recorder = new MediaRecorder(stream, { 
+                    mimeType: 'video/webm; codecs=vp8,opus',
+                    videoBitsPerSecond: 1000000,
+                    audioBitsPerSecond: 128000
+                });
                 mediaRecorderRef.current = recorder;
 
                 recorder.ondataavailable = (event) => {
@@ -61,6 +85,11 @@ function CodingInterviewPage() {
                         recordedChunksRef.current.push(event.data);
                     }
                 };
+
+                toast({
+                    title: 'Camera & Microphone Ready',
+                    description: 'You can now start your coding interview.',
+                });
             } catch (error) {
                 setHasPermission(false);
                 toast({ variant: 'destructive', title: 'Media Access Denied', description: 'Camera and microphone are required.' });
@@ -70,18 +99,97 @@ function CodingInterviewPage() {
     }, [toast]);
     
     const say = useCallback(async (text: string) => {
+        if (!audioEnabled || !ttsReady) {
+            // Just add message to UI without speaking
+            setMessages(prev => [...prev, { speaker: 'ai', text, audioUrl: "silent" }]);
+            return;
+        }
+
         setIsAISpeaking(true);
         try {
-            const { audioDataUri } = await textToSpeech({ text });
-            setMessages(prev => [...prev, { speaker: 'ai', text, audioUrl: audioDataUri }]);
+            const result = await textToSpeech({ text });
+            
+            // Add message to UI
+            setMessages(prev => [...prev, { speaker: 'ai', text, audioUrl: result.success ? "spoken" : "silent" }]);
+            
+            if (result.success) {
+                // Set up timeout as fallback
+                const speechTimeout = setTimeout(() => {
+                    setIsAISpeaking(false);
+                }, Math.max(text.length * 80, 3000));
+                
+                // Check if speech is still playing
+                const checkSpeechEnd = () => {
+                    if (window.responsiveVoice && window.responsiveVoice.isPlaying()) {
+                        setTimeout(checkSpeechEnd, 500);
+                    } else {
+                        clearTimeout(speechTimeout);
+                        setIsAISpeaking(false);
+                    }
+                };
+                
+                setTimeout(checkSpeechEnd, 1000);
+            } else {
+                throw new Error('TTS failed');
+            }
         } catch (error) {
             console.error("TTS failed:", error);
-            setMessages(prev => [...prev, { speaker: 'ai', text, audioUrl: undefined }]);
-            toast({ variant: "destructive", title: "Audio Error", description: "Couldn't generate AI voice. Continuing without audio." });
-        } finally {
+            setMessages(prev => [...prev, { speaker: 'ai', text, audioUrl: "error" }]);
+            toast({ variant: "destructive", title: "Audio Error", description: "Couldn't generate AI voice. You can read the text instead." });
             setIsAISpeaking(false);
         }
-    }, [toast]);
+    }, [audioEnabled, ttsReady, toast]);
+
+    const playMessageAudio = useCallback(async (text: string) => {
+        if (!audioEnabled || !ttsReady) {
+            toast({
+                variant: 'default',
+                title: 'Audio Disabled',
+                description: 'Click the volume button to enable AI voice.',
+            });
+            return;
+        }
+
+        setIsAISpeaking(true);
+        try {
+            const result = await textToSpeech({ text });
+            
+            if (result.success) {
+                const speechTimeout = setTimeout(() => {
+                    setIsAISpeaking(false);
+                }, Math.max(text.length * 80, 3000));
+                
+                const checkSpeechEnd = () => {
+                    if (window.responsiveVoice && window.responsiveVoice.isPlaying()) {
+                        setTimeout(checkSpeechEnd, 500);
+                    } else {
+                        clearTimeout(speechTimeout);
+                        setIsAISpeaking(false);
+                    }
+                };
+                
+                setTimeout(checkSpeechEnd, 1000);
+            } else {
+                throw new Error('TTS failed');
+            }
+        } catch (error) {
+            console.error("Audio play failed:", error);
+            setIsAISpeaking(false);
+            toast({
+                variant: 'destructive',
+                title: 'Audio Error',
+                description: "Couldn't play audio. Please try again.",
+            });
+        }
+    }, [audioEnabled, ttsReady, toast]);
+
+    const toggleAudio = () => {
+        if (audioEnabled) {
+            stopSpeech();
+            setIsAISpeaking(false);
+        }
+        setAudioEnabled(!audioEnabled);
+    };
 
     const handleStartInterview = async () => {
         if (!config.role || !config.level) {
@@ -133,7 +241,6 @@ function CodingInterviewPage() {
         setStage('processing');
         mediaRecorderRef.current.stop();
 
-        // Wait for onstop to fire
         setTimeout(async () => {
             const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
             if(videoBlob.size === 0) {
@@ -142,13 +249,13 @@ function CodingInterviewPage() {
                 return;
             }
 
-            setProcessingState({ progress: 10, message: 'please have some patience respected jury of suprathon' });
             const reader = new FileReader();
             reader.readAsDataURL(videoBlob);
-            reader.onloadend = async () => {
-                const videoDataUri = reader.result as string;
-                setProcessingState({ progress: 30, message: 'please have some patience respected jury of suprathon' });
+            
+            reader.onload = async () => {
                 try {
+                    setProcessingState({ progress: 30, message: 'Analyzing your code and performance...' });
+                    const videoDataUri = reader.result as string;
                     const analysisResult = await analyzeCodingAttempt({
                         videoDataUri,
                         question: questions[currentQuestionIndex].question,
@@ -156,11 +263,14 @@ function CodingInterviewPage() {
                         role: config.role,
                         level: config.level,
                     });
-                    setProcessingState({ progress: 90, message: 'Finalizing report...' });
+
+                    setProcessingState({ progress: 90, message: 'Finalizing results...' });
                     const videoUrl = URL.createObjectURL(videoBlob);
                     sessionStorage.setItem('videoUrl', videoUrl);
                     sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
                     sessionStorage.setItem('analysisType', 'coding');
+
+                    setProcessingState({ progress: 100, message: 'Complete!' });
                     router.push('/analysis');
                 } catch (e) {
                     toast({ variant: 'destructive', title: 'Analysis Failed', description: 'Could not analyze your submission.' });
@@ -170,44 +280,154 @@ function CodingInterviewPage() {
         }, 500);
     };
     
+    // Handle successful permission grant
+    const handlePermissionGranted = useCallback((stream: MediaStream) => {
+        setHasPermission(true);
+        setMediaStream(stream);
+        
+        if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+        }
+
+        const recorder = new MediaRecorder(stream, { 
+            mimeType: 'video/webm; codecs=vp8,opus',
+            videoBitsPerSecond: 1000000,
+            audioBitsPerSecond: 128000
+        });
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                recordedChunksRef.current.push(event.data);
+            }
+        };
+
+        toast({
+            title: 'Camera & Microphone Ready',
+            description: 'You can now start your coding interview.',
+        });
+    }, [toast]);
+
+    // Handle permission error
+    const handlePermissionError = useCallback((error: string) => {
+        setHasPermission(false);
+        console.error('Permission error:', error);
+    }, []);
+
+    // Cleanup media stream on unmount
+    useEffect(() => {
+        return () => {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [mediaStream]);
+
     const toggleMic = () => {
-        const stream = videoRef.current?.srcObject as MediaStream;
-        if (stream) {
-            stream.getAudioTracks().forEach(track => track.enabled = !isMicOn);
+        if (mediaStream) {
+            mediaStream.getAudioTracks().forEach(track => track.enabled = !isMicOn);
             setIsMicOn(!isMicOn);
         }
     };
 
     const toggleCamera = () => {
-        const stream = videoRef.current?.srcObject as MediaStream;
-        if (stream) {
-            stream.getVideoTracks().forEach(track => track.enabled = !isCameraOn);
+        if (mediaStream) {
+            mediaStream.getVideoTracks().forEach(track => track.enabled = !isCameraOn);
             setIsCameraOn(!isCameraOn);
         }
     };
 
     const lastMessage = messages[messages.length - 1];
-    
-    useEffect(() => {
-        if(lastMessage?.speaker === 'ai' && lastMessage.audioUrl && audioRef.current) {
-            audioRef.current.src = lastMessage.audioUrl;
-            audioRef.current.play().catch(e => console.error("Audio play failed:", e));
-        }
-    }, [lastMessage]);
 
     const renderContent = () => {
-        if (hasPermission === false) {
-            return <div className="flex items-center justify-center h-full"><Alert variant="destructive"><AlertTitle>Permissions Required</AlertTitle><AlertDescription>Please allow camera/mic access.</AlertDescription></Alert></div>;
+        // Show permission request if no permission
+        if (hasPermission === false || hasPermission === null) {
+            return (
+                <PermissionRequest 
+                    onPermissionGranted={handlePermissionGranted}
+                    onError={handlePermissionError}
+                />
+            );
         }
 
         switch (stage) {
             case 'setup':
-                return <Card className="w-full max-w-lg"><CardHeader><CardTitle>Coding Interview Setup</CardTitle><CardDescription>Configure your technical mock interview.</CardDescription></CardHeader><CardContent className="space-y-4"><Select onValueChange={(v) => setConfig(c => ({...c, role: v}))}><SelectTrigger><SelectValue placeholder="Select a Role" /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><Select onValueChange={(v) => setConfig(c => ({...c, level: v}))}><SelectTrigger><SelectValue placeholder="Select a Level" /></SelectTrigger><SelectContent>{levels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select><Button onClick={handleStartInterview} className="w-full" disabled={isLoading || hasPermission === null}>{isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Starting...</> : (hasPermission === null ? 'Waiting for permissions...': 'Start Interview')}</Button></CardContent></Card>;
+                return (
+                    <div className="p-6 space-y-6">
+                        <div className="text-center">
+                            <Code className="h-12 w-12 text-primary mx-auto mb-4"/>
+                            <h2 className="text-2xl font-bold">Coding Interview Setup</h2>
+                            <p className="text-muted-foreground mt-2">Configure your technical interview</p>
+                            
+                            {/* Recording Warning */}
+                            <Alert className="mt-4 mb-4 border-amber-500 bg-amber-50 text-amber-800">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertTitle className="text-amber-800">Recording Notice</AlertTitle>
+                                <AlertDescription className="text-amber-700">
+                                    <strong>You are being recorded and will be judged on your coding and communication.</strong><br />
+                                    Please behave professionally during this technical interview.
+                                </AlertDescription>
+                            </Alert>
+
+                            <div className="flex items-center justify-center gap-2 mb-4">
+                                <Button
+                                    variant={audioEnabled ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={toggleAudio}
+                                    className="flex items-center gap-2"
+                                >
+                                    {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                                    {audioEnabled ? 'AI Voice ON' : 'AI Voice OFF'}
+                                </Button>
+                                <span className="text-xs text-muted-foreground">
+                                    {ttsReady ? '(Audio ready)' : '(Loading audio...)'}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div className="grid gap-4">
+                            <div>
+                                <label className="text-sm font-medium">Role</label>
+                                <Select value={config.role} onValueChange={value => setConfig(prev => ({...prev, role: value}))}>
+                                    <SelectTrigger><SelectValue placeholder="Select role"/></SelectTrigger>
+                                    <SelectContent>
+                                        {roles.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            
+                            <div>
+                                <label className="text-sm font-medium">Experience Level</label>
+                                <Select value={config.level} onValueChange={value => setConfig(prev => ({...prev, level: value}))}>
+                                    <SelectTrigger><SelectValue placeholder="Select level"/></SelectTrigger>
+                                    <SelectContent>
+                                        {levels.map(level => <SelectItem key={level} value={level}>{level}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            
+                            <div>
+                                <label className="text-sm font-medium">Number of Questions</label>
+                                <Select value={config.numQuestions} onValueChange={value => setConfig(prev => ({...prev, numQuestions: value}))}>
+                                    <SelectTrigger><SelectValue placeholder="Select count"/></SelectTrigger>
+                                    <SelectContent>
+                                        {questionCounts.map(count => <SelectItem key={count} value={count}>{count}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        
+                        <Button onClick={handleStartInterview} className="w-full" size="lg" disabled={isLoading}>
+                            {isLoading ? <><Loader2 className="mr-2 animate-spin"/> Generating Questions...</> : <>Start Interview</>}
+                        </Button>
+                    </div>
+                );
             case 'connecting':
                 return (
                     <div className="flex flex-col items-center justify-center h-full text-center p-4">
                         <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
-                        <h2 className="text-2xl font-bold">Waiting for the AI to join the call...</h2>
+                        <h2 className="text-2xl font-bold">AI Interviewer is joining...</h2>
+                        {audioEnabled && <p className="text-sm text-muted-foreground mt-2">Listen for the introduction...</p>}
                     </div>
                 );
             case 'intro':
@@ -215,30 +435,86 @@ function CodingInterviewPage() {
                 return (
                     <div className="flex flex-col items-center justify-center h-full text-center p-4">
                         <div className="flex items-center gap-4 my-4">
-                            {isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse" />}
+                            {isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse text-primary" />}
                             {lastMessage?.speaker === 'ai' && <h2 className="text-3xl font-bold">"{lastMessage.text}"</h2>}
                         </div>
-                        <div className="mt-4 bg-primary/20 text-primary-foreground p-3 rounded-lg flex items-center gap-2">
-                           <Info className="h-5 w-5" />
-                           <p className="font-medium text-sm">{isAISpeaking ? "Listen to the question..." : "Please answer the question above."}</p>
+                        
+                        {lastMessage?.speaker === 'ai' && !isAISpeaking && (
+                            <div className="flex gap-2 mt-4 mb-6">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => playMessageAudio(lastMessage.text)}
+                                    disabled={isAISpeaking || !ttsReady}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Volume2 className="h-4 w-4" />
+                                    {isAISpeaking ? 'Playing...' : 'Listen Again'}
+                                </Button>
+                                
+                                <Button
+                                    variant={audioEnabled ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={toggleAudio}
+                                    className="flex items-center gap-2"
+                                >
+                                    {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                                    {audioEnabled ? 'Voice ON' : 'Voice OFF'}
+                                </Button>
+                            </div>
+                        )}
+                        
+                        <div className="mt-6 bg-primary/20 text-primary-foreground p-4 rounded-lg flex items-center gap-2">
+                            <Info className="h-5 w-5" />
+                            <p className="font-medium text-sm">
+                                {isAISpeaking 
+                                    ? "AI is speaking. Listen carefully..." 
+                                    : stage === 'intro' 
+                                        ? "Introduce yourself and your experience with this technology."
+                                        : "Explain your approach to solving this problem conceptually."
+                                }
+                            </p>
                         </div>
-                        <Button onClick={handleNextStage} size="lg" className="mt-6" disabled={isAISpeaking}>I'm ready to answer <Send className="ml-2"/></Button>
+                        
+                        <Button onClick={handleNextStage} className="mt-6" size="lg" disabled={isAISpeaking}>
+                            {stage === 'intro' ? 'Continue to Technical Discussion' : 'Start Coding'}
+                        </Button>
                     </div>
                 );
             case 'coding':
                 return (
                     <div className="p-4 h-full flex flex-col">
-                        <div className="mb-4 bg-primary/20 text-primary-foreground p-3 rounded-lg flex items-center gap-2">
-                           <Info className="h-5 w-5" />
-                           <p className="font-medium text-sm">Please write your code in the editor and explain your thought process out loud.</p>
+                        <div className="mb-4 bg-primary/20 text-primary-foreground p-3 rounded-lg">
+                            <h3 className="font-semibold text-lg">{questions[currentQuestionIndex].question}</h3>
+                            <p className="text-sm mt-1 opacity-90">Topic: {questions[currentQuestionIndex].topic}</p>
                         </div>
+                        
                         <Card className="flex-grow flex flex-col">
-                            <CardHeader>
-                                <CardTitle>Your Code</CardTitle>
-                                <CardDescription>{questions[currentQuestionIndex]?.question}</CardDescription>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-lg flex items-center justify-between">
+                                    Code Editor
+                                    {audioEnabled && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => playMessageAudio("Now please write the code for your solution.")}
+                                            disabled={isAISpeaking}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <Volume2 className="h-4 w-4" />
+                                            Replay Instruction
+                                        </Button>
+                                    )}
+                                </CardTitle>
+                                <CardDescription>Write your solution below and explain your approach</CardDescription>
                             </CardHeader>
                             <CardContent className="flex-grow flex flex-col">
-                                <Textarea value={code} onChange={e => setCode(e.target.value)} placeholder="Type your code here..." className="flex-grow font-mono text-sm resize-none" />
+                                <Textarea 
+                                    value={code} 
+                                    onChange={e => setCode(e.target.value)} 
+                                    placeholder="Type your code here..." 
+                                    className="flex-grow font-mono text-sm resize-none" 
+                                />
                                 <Button onClick={handleFinishInterview} className="w-full mt-4">
                                     <Send className="mr-2"/>Finish & Analyze
                                 </Button>
@@ -256,32 +532,59 @@ function CodingInterviewPage() {
     return (
         <div className="flex flex-col h-screen bg-gray-900 text-white">
             <header className="p-4 flex justify-between items-center border-b border-gray-700">
-                <Button asChild variant="outline" className="bg-transparent hover:bg-gray-800 border-gray-700"><Link href="/interview"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link></Button>
-                <div className="text-lg font-semibold flex items-center gap-2"><Code /> Coding Mock Interview</div>
+                <Button asChild variant="outline" className="bg-transparent hover:bg-gray-800 border-gray-700">
+                    <Link href="/interview"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link>
+                </Button>
+                <div className="text-lg font-semibold flex items-center gap-2">
+                    <Code /> 
+                    Coding Mock Interview
+                    {(stage !== 'setup' && stage !== 'connecting' && stage !== 'processing' && stage !== 'error') && (
+                        <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">
+                            RECORDING
+                        </span>
+                    )}
+                </div>
                 <div />
             </header>
+            
             <main className="flex-1 grid md:grid-cols-2 gap-4 p-4 overflow-hidden">
                 <div className="bg-gray-800 rounded-lg flex items-center justify-center relative">
                     <div className="flex items-center justify-center h-full w-full">{renderContent()}</div>
                 </div>
                 <div className="bg-gray-800 rounded-lg relative overflow-hidden flex items-center justify-center">
-                    <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                    <audio ref={audioRef} onEnded={() => setIsAISpeaking(false)} />
-                    {hasPermission === false && (
-                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-4">
-                            <Alert variant="destructive"><AlertTitle>Camera Access Required</AlertTitle><AlertDescription>Please allow camera and mic access.</AlertDescription></Alert>
-                        </div>
-                    )}
-                    <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
-                        <p className="font-semibold">You</p>
-                    </div>
-                     {(stage !== 'setup' && stage !== 'connecting' && stage !== 'processing' && stage !== 'error') && (
-                        <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
-                            <div className="w-2 h-2 bg-white rounded-full"></div>REC
+                    {hasPermission ? (
+                        <>
+                            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                            
+                            <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
+                                <p className="font-semibold">You</p>
+                            </div>
+                            
+                            {(stage !== 'setup' && stage !== 'connecting' && stage !== 'processing' && stage !== 'error') && (
+                                <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
+                                    <div className="w-2 h-2 bg-white rounded-full"></div>REC
+                                </div>
+                            )}
+                            
+                            {(stage !== 'setup' && stage !== 'connecting' && stage !== 'processing' && stage !== 'error') && (
+                                <div className="absolute top-4 left-4 bg-red-600/90 text-white px-3 py-2 rounded-lg">
+                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        Being Analyzed
+                                    </div>
+                                    <p className="text-xs mt-1">Code & performance review</p>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                            <Camera className="h-16 w-16 text-gray-400 mb-4" />
+                            <p className="text-gray-400">Camera will appear here once permissions are granted</p>
                         </div>
                     )}
                 </div>
             </main>
+            
              <footer className="p-4 flex justify-center items-center space-x-4 bg-gray-900/80 border-t border-gray-700">
                 <Button variant={isMicOn ? 'secondary' : 'destructive'} size="icon" className="rounded-full w-14 h-14" onClick={toggleMic} disabled={!hasPermission || stage === 'setup' || stage === 'processing'}>
                   {isMicOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}

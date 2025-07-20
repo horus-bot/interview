@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Mic, Video, PhoneOff, Send, Bot, MicOff, VideoOff, Volume2, Loader2, Info } from 'lucide-react';
+import { ArrowLeft, Mic, Video, PhoneOff, Send, Bot, MicOff, VideoOff, Volume2, VolumeX, Loader2, Info, AlertTriangle, Camera } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -12,7 +11,8 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { reasoningAnalysis } from '@/ai/flows/reasoning-analysis';
 import { Progress } from '@/components/ui/progress';
 import { withAuth } from '@/context/auth-context';
-import { textToSpeech } from '@/ai/flows/tts-flow';
+import { textToSpeech, stopSpeech, isTTSReady } from '@/ai/flows/tts-flow';
+import { PermissionRequest } from '@/components/PermissionRequest';
 
 const interviewQuestions = [
     "Tell me about yourself.",
@@ -34,6 +34,9 @@ function BehavioralInterviewPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [ttsReady, setTtsReady] = useState(false);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -43,12 +46,132 @@ function BehavioralInterviewPage() {
   const { toast } = useToast();
   const router = useRouter();
 
+  // Initialize TTS when component mounts
+  useEffect(() => {
+    const initTTS = async () => {
+      try {
+        await textToSpeech({ text: "TTS initialization" });
+        setTtsReady(true);
+        console.log('TTS initialized successfully');
+      } catch (error) {
+        console.warn('TTS initialization failed:', error);
+        setTtsReady(false);
+      }
+    };
+    
+    initTTS();
+  }, []);
+
+  // Handle successful permission grant
+  const handlePermissionGranted = useCallback((stream: MediaStream) => {
+    setHasPermission(true);
+    setMediaStream(stream);
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+
+    const recorder = new MediaRecorder(stream, { 
+      mimeType: 'video/webm; codecs=vp8,opus',
+      videoBitsPerSecond: 1000000, // 1Mbps for good quality
+      audioBitsPerSecond: 128000   // 128kbps for audio
+    });
+    mediaRecorderRef.current = recorder;
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        recordedChunksRef.current.push(event.data);
+      }
+    };
+
+    recorder.onstop = async () => {
+        setInterviewState('processing');
+        const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        
+        if (videoBlob.size === 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Recording Error',
+                description: 'The recording is empty. Please try again.',
+            });
+            setInterviewState('finished');
+            return;
+        }
+        
+        setProcessingState({progress: 10, message: 'Analyzing your interview performance...'});
+
+        const reader = new FileReader();
+        reader.readAsDataURL(videoBlob);
+        reader.onloadend = async () => {
+            const videoDataUri = reader.result as string;
+            
+            try {
+                setProcessingState({progress: 50, message: 'AI is reviewing your responses...'});
+                const analysisResult = await reasoningAnalysis({ videoDataUri });
+
+                if(!analysisResult?.transcript || analysisResult.transcript.length < 10) {
+                     toast({
+                        variant: 'destructive',
+                        title: 'Analysis Failed',
+                        description: 'Could not generate a transcript. The recording might have been too short or silent.',
+                    });
+                    setInterviewState('finished');
+                    return;
+                }
+
+                setProcessingState({progress: 90, message: 'Finalizing your report...'});
+                const videoUrl = URL.createObjectURL(videoBlob);
+                sessionStorage.setItem('videoUrl', videoUrl);
+                sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
+                sessionStorage.setItem('analysisType', 'behavioral');
+
+                setProcessingState({progress: 100, message: 'Redirecting to analysis...'});
+                router.push('/analysis');
+
+            } catch (error) {
+                console.error("Processing failed:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Analysis Failed',
+                    description: 'An error occurred during processing. Please try again.',
+                });
+                setInterviewState('finished');
+            }
+        };
+    };
+
+    toast({
+      title: 'Camera & Microphone Ready',
+      description: 'You can now start your interview.',
+    });
+  }, [toast, router]);
+
+  // Handle permission error
+  const handlePermissionError = useCallback((error: string) => {
+    setHasPermission(false);
+    console.error('Permission error:', error);
+  }, []);
+
+  // Cleanup media stream on unmount
+  useEffect(() => {
+    return () => {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [mediaStream]);
+
   const handleStartInterview = useCallback(() => {
-    if (mediaRecorderRef.current) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
       recordedChunksRef.current = [];
-      mediaRecorderRef.current.start();
+      mediaRecorderRef.current.start(1000); // Record in 1-second chunks
       setInterviewState('in_progress');
-      setIsConnecting(true); // Show connecting message
+      setIsConnecting(true);
+      
+      toast({
+        title: 'Interview Started',
+        description: 'You are now being recorded. Good luck!',
+      });
     } else {
         toast({
             variant: 'destructive',
@@ -59,117 +182,77 @@ function BehavioralInterviewPage() {
   }, [toast]);
   
   const handleStopInterview = useCallback(() => {
+    stopSpeech();
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.stop();
         setInterviewState('finished');
     }
   }, []);
 
-  useEffect(() => {
-    const setupMedia = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        setHasPermission(true);
+  // Enhanced audio play function with user control
+  const playQuestionAudio = useCallback(async () => {
+    if (!audioEnabled || !ttsReady) {
+      toast({
+        variant: 'default',
+        title: 'Audio Disabled',
+        description: 'Click the volume button to enable AI voice.',
+      });
+      return;
+    }
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-
-        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-        mediaRecorderRef.current = recorder;
-
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            recordedChunksRef.current.push(event.data);
+    setIsAISpeaking(true);
+    try {
+      const result = await textToSpeech({ text: interviewQuestions[currentQuestionIndex] });
+      
+      if (result.success) {
+        const speechTimeout = setTimeout(() => {
+          setIsAISpeaking(false);
+          setIsConnecting(false);
+        }, Math.max(interviewQuestions[currentQuestionIndex].length * 80, 3000));
+        
+        const checkSpeechEnd = () => {
+          if (window.responsiveVoice && window.responsiveVoice.isPlaying()) {
+            setTimeout(checkSpeechEnd, 500);
+          } else {
+            clearTimeout(speechTimeout);
+            setIsAISpeaking(false);
+            setIsConnecting(false);
           }
         };
-
-        recorder.onstop = async () => {
-            setInterviewState('processing');
-            const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-            
-            setProcessingState({progress: 10, message: 'please have some patience respected jury of suprathon'});
-
-            const reader = new FileReader();
-            reader.readAsDataURL(videoBlob);
-            reader.onloadend = async () => {
-                const videoDataUri = reader.result as string;
-                
-                try {
-                    setProcessingState({progress: 50, message: 'please have some patience respected jury of suprathon'});
-                    const analysisResult = await reasoningAnalysis({ videoDataUri });
-
-                    if(!analysisResult?.transcript || analysisResult.transcript.length < 10) {
-                         toast({
-                            variant: 'destructive',
-                            title: 'Analysis Failed',
-                            description: 'Could not generate a transcript. The recording might have been too short or silent.',
-                        });
-                        setInterviewState('finished');
-                        return;
-                    }
-
-                    setProcessingState({progress: 90, message: 'Finalizing your report...'});
-                    const videoUrl = URL.createObjectURL(videoBlob);
-                    sessionStorage.setItem('videoUrl', videoUrl);
-                    sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
-                    sessionStorage.setItem('analysisType', 'behavioral');
-
-                    setProcessingState({progress: 100, message: 'Redirecting to analysis...'});
-                    router.push('/analysis');
-
-                } catch (error) {
-                    console.error("Processing failed:", error);
-                    toast({
-                        variant: 'destructive',
-                        title: 'Analysis Failed',
-                        description: 'An error occurred during processing. Please try again.',
-                    });
-                    setInterviewState('finished');
-                }
-            };
-        };
-
-      } catch (error) {
-        console.error('Error accessing media devices:', error);
-        setHasPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Media Access Denied',
-          description: 'Please enable camera and microphone permissions in your browser settings.',
-        });
+        
+        setTimeout(checkSpeechEnd, 1000);
+      } else {
+        throw new Error('TTS failed to generate speech');
       }
-    };
-    setupMedia();
-  }, [toast, router]);
-
-  useEffect(() => {
-    if (interviewState === 'in_progress') {
-        const fetchAndPlayAudio = async () => {
-            setIsAISpeaking(true);
-            try {
-                const { audioDataUri } = await textToSpeech({ text: interviewQuestions[currentQuestionIndex] });
-                setIsConnecting(false); // AI has "joined"
-                setAudioUrl(audioDataUri);
-            } catch (error) {
-                console.error("TTS failed:", error);
-                setIsConnecting(false);
-                toast({
-                    variant: 'destructive',
-                    title: 'Audio Error',
-                    description: "Couldn't generate AI voice. Continuing without audio."
-                })
-            } finally {
-                setIsAISpeaking(false);
-            }
-        };
-        fetchAndPlayAudio();
+      
+    } catch (error) {
+      console.error("Audio play failed:", error);
+      setIsAISpeaking(false);
+      setIsConnecting(false);
+      toast({
+        variant: 'destructive',
+        title: 'Audio Error',
+        description: "Couldn't generate AI voice. You can read the question instead.",
+      });
     }
-  }, [interviewState, currentQuestionIndex, toast]);
-  
+  }, [audioEnabled, ttsReady, currentQuestionIndex, toast]);
+
+  // Auto-play when interview starts (only if audio enabled)
+  useEffect(() => {
+    if (interviewState === 'in_progress' && isConnecting) {
+      if (audioEnabled) {
+        playQuestionAudio();
+      } else {
+        setTimeout(() => setIsConnecting(false), 1000);
+      }
+    }
+  }, [interviewState, isConnecting, audioEnabled, playQuestionAudio]);
 
   const handleNextQuestion = () => {
+    stopSpeech();
     setAudioUrl(null);
+    setIsAISpeaking(false);
+    
     if (currentQuestionIndex < interviewQuestions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
@@ -177,33 +260,36 @@ function BehavioralInterviewPage() {
     }
   };
 
+  const toggleAudio = () => {
+    if (audioEnabled) {
+      stopSpeech();
+      setIsAISpeaking(false);
+    }
+    setAudioEnabled(!audioEnabled);
+  };
+
   const toggleMic = () => {
-    const stream = videoRef.current?.srcObject as MediaStream;
-    if (stream) {
-        stream.getAudioTracks().forEach(track => track.enabled = !isMicOn);
+    if (mediaStream) {
+        mediaStream.getAudioTracks().forEach(track => track.enabled = !isMicOn);
         setIsMicOn(!isMicOn);
     }
   };
 
   const toggleCamera = () => {
-    const stream = videoRef.current?.srcObject as MediaStream;
-     if (stream) {
-        stream.getVideoTracks().forEach(track => track.enabled = !isCameraOn);
+    if (mediaStream) {
+        mediaStream.getVideoTracks().forEach(track => track.enabled = !isCameraOn);
         setIsCameraOn(!isCameraOn);
     }
   };
 
   const renderContent = () => {
-    if (hasPermission === false) {
+    // Show permission request if no permission
+    if (hasPermission === false || hasPermission === null) {
       return (
-         <div className="flex flex-col items-center justify-center h-full text-center">
-            <Alert variant="destructive" className="max-w-sm">
-                <AlertTitle>Media Permissions Required</AlertTitle>
-                <AlertDescription>
-                Please allow camera and microphone access to start the interview. Check your browser's site settings and refresh the page.
-                </AlertDescription>
-            </Alert>
-         </div>
+        <PermissionRequest 
+          onPermissionGranted={handlePermissionGranted}
+          onError={handlePermissionError}
+        />
       );
     }
     
@@ -213,9 +299,35 @@ function BehavioralInterviewPage() {
                 <div className="flex flex-col items-center justify-center h-full text-center p-4">
                     <Bot className="h-16 w-16 text-primary mb-4"/>
                     <h2 className="text-2xl font-bold">Ready for your Behavioral Interview?</h2>
-                    <p className="text-muted-foreground mt-2 mb-6">You'll be asked {interviewQuestions.length} common behavioral questions. The AI will speak each question.</p>
-                    <Button onClick={handleStartInterview} size="lg" disabled={hasPermission === null}>
-                        {hasPermission === null ? <><Loader2 className="mr-2 animate-spin" /> Waiting for permissions...</> : <>Start Interview</>}
+                    <p className="text-muted-foreground mt-2 mb-4">You'll be asked {interviewQuestions.length} common behavioral questions.</p>
+                    
+                    {/* Recording Warning */}
+                    <Alert className="mb-4 border-amber-500 bg-amber-50 text-amber-800">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle className="text-amber-800">Recording Notice</AlertTitle>
+                        <AlertDescription className="text-amber-700">
+                            <strong>You are being recorded and will be judged on your performance.</strong><br />
+                            Please behave professionally as this interview will be analyzed by AI.
+                        </AlertDescription>
+                    </Alert>
+
+                    <div className="flex items-center gap-2 mb-6">
+                        <Button
+                            variant={audioEnabled ? "default" : "outline"}
+                            size="sm"
+                            onClick={toggleAudio}
+                            className="flex items-center gap-2"
+                        >
+                            {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                            {audioEnabled ? 'AI Voice ON' : 'AI Voice OFF'}
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                            {ttsReady ? '(Audio ready)' : '(Loading audio...)'}
+                        </span>
+                    </div>
+
+                    <Button onClick={handleStartInterview} size="lg" disabled={!hasPermission}>
+                        Start Interview
                     </Button>
                 </div>
             );
@@ -224,7 +336,8 @@ function BehavioralInterviewPage() {
                 return (
                     <div className="flex flex-col items-center justify-center h-full text-center p-4">
                         <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
-                        <h2 className="text-2xl font-bold">Waiting for the AI to join the call...</h2>
+                        <h2 className="text-2xl font-bold">AI is joining the interview...</h2>
+                        {audioEnabled && <p className="text-sm text-muted-foreground mt-2">Listen for the question...</p>}
                     </div>
                 );
             }
@@ -232,13 +345,40 @@ function BehavioralInterviewPage() {
                  <div className="flex flex-col items-center justify-center h-full text-center p-4 bg-black/30 rounded-lg">
                     <p className="text-lg text-muted-foreground">Question {currentQuestionIndex + 1} of {interviewQuestions.length}</p>
                     <div className="flex items-center gap-4 my-4">
-                        {isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse" />}
+                        {isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse text-primary" />}
                         <h2 className="text-3xl font-bold">"{interviewQuestions[currentQuestionIndex]}"</h2>
                     </div>
+                    
+                    <div className="flex gap-2 mt-4 mb-4">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={playQuestionAudio}
+                            disabled={isAISpeaking || !ttsReady}
+                            className="flex items-center gap-2"
+                        >
+                            <Volume2 className="h-4 w-4" />
+                            {isAISpeaking ? 'Playing...' : 'Listen to Question'}
+                        </Button>
+                        
+                        <Button
+                            variant={audioEnabled ? "default" : "outline"}
+                            size="sm"
+                            onClick={toggleAudio}
+                            className="flex items-center gap-2"
+                        >
+                            {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                            {audioEnabled ? 'Voice ON' : 'Voice OFF'}
+                        </Button>
+                    </div>
+
                     <div className="mt-4 bg-primary/20 text-primary-foreground p-3 rounded-lg flex items-center gap-2">
                         <Info className="h-5 w-5" />
-                        <p className="font-medium text-sm">{isAISpeaking ? "Listen to the question..." : "Your turn to speak. Answer the question, then click Next."}</p>
+                        <p className="font-medium text-sm">
+                            {isAISpeaking ? "AI is speaking the question..." : "Answer the question thoroughly, then click Next."}
+                        </p>
                     </div>
+                    
                     <Button onClick={handleNextQuestion} size="lg" className="mt-6" disabled={isAISpeaking}>
                         {currentQuestionIndex < interviewQuestions.length - 1 ? (
                             <>Next Question <Send className="ml-2"/></>
@@ -268,17 +408,24 @@ function BehavioralInterviewPage() {
     }
   }
 
-
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
-      <header className="p-4 flex justify-between items-center">
+      <header className="p-4 flex justify-between items-center border-b border-gray-700">
         <Button asChild variant="outline" className="bg-transparent hover:bg-gray-800 border-gray-700">
           <Link href="/interview">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Interview Types
           </Link>
         </Button>
-        <div className="text-lg font-semibold">Behavioral Mock Interview</div>
+        <div className="text-lg font-semibold flex items-center gap-2">
+          <Bot className="h-5 w-5" />
+          Behavioral Mock Interview
+          {interviewState === 'in_progress' && (
+            <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">
+              RECORDING
+            </span>
+          )}
+        </div>
         <div />
       </header>
 
@@ -288,31 +435,42 @@ function BehavioralInterviewPage() {
         </div>
 
         <div className="relative bg-gray-800 rounded-lg overflow-hidden flex items-center justify-center">
-            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-            {audioUrl && <audio ref={audioRef} src={audioUrl} autoPlay onEnded={() => setAudioUrl(null)}/>}
-            {hasPermission === false && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-4">
-                    <Alert variant="destructive" className="max-w-sm">
-                      <AlertTitle>Camera Access Required</AlertTitle>
-                      <AlertDescription>
-                        Please allow camera and microphone access to start the interview.
-                      </AlertDescription>
-                    </Alert>
+            {hasPermission ? (
+              <>
+                <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                {audioUrl && <audio ref={audioRef} src={audioUrl} autoPlay onEnded={() => setAudioUrl(null)}/>}
+                
+                <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
+                    <p className="font-semibold">You</p>
                 </div>
-            )}
-             <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
-                <p className="font-semibold">You</p>
-            </div>
-             {interviewState === 'in_progress' && !isConnecting && (
-                <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full">
-                    <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
-                    <span className="font-bold text-sm">REC</span>
-                </div>
+                
+                {interviewState === 'in_progress' && !isConnecting && (
+                    <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                        REC
+                    </div>
+                )}
+                
+                {interviewState === 'in_progress' && (
+                    <div className="absolute top-4 left-4 bg-red-600/90 text-white px-3 py-2 rounded-lg">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                            <AlertTriangle className="h-4 w-4" />
+                            Being Analyzed
+                        </div>
+                        <p className="text-xs mt-1">AI is judging your performance</p>
+                    </div>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                <Camera className="h-16 w-16 text-gray-400 mb-4" />
+                <p className="text-gray-400">Camera will appear here once permissions are granted</p>
+              </div>
             )}
         </div>
       </main>
 
-      <footer className="p-4 flex justify-center items-center space-x-4 bg-gray-900/80">
+      <footer className="p-4 flex justify-center items-center space-x-4 bg-gray-900/80 border-t border-gray-700">
         <Button
           variant={isMicOn ? 'secondary' : 'destructive'}
           size="icon"
@@ -344,6 +502,5 @@ function BehavioralInterviewPage() {
     </div>
   );
 }
-
 
 export default withAuth(BehavioralInterviewPage);
