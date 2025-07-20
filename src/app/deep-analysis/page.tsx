@@ -40,9 +40,6 @@ const Radar = dynamic(() => import('react-chartjs-2').then(mod => mod.Radar), { 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), { ssr: false });
 const Pie = dynamic(() => import('react-chartjs-2').then(mod => mod.Pie), { ssr: false });
 
-const GROQ_API_KEY = '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';
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
 function extractJSON(text: string) {
   const match = text.match(/{[\s\S]*}/);
   if (match) {
@@ -54,7 +51,6 @@ function extractJSON(text: string) {
   }
   return null;
 }
-
 
 async function fetchDeepAnalysis(geminiData: any) {
   const prompt = `
@@ -92,20 +88,16 @@ Here is the Gemini data:
 ${JSON.stringify(geminiData)}
 `;
 
-  const res = await fetch(GROQ_API_URL, {
+  const res = await fetch('/api/groq-analysis', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct', // Updated model
-      messages: [
-        { role: 'system', content: 'You are a world-class interview analysis assistant.' },
-        { role: 'user', content: prompt },
-      ],
-      max_tokens: 3072,
-      temperature: 0.4,
+      text: prompt,
+      prompt: 'You are a world-class interview analysis assistant.',
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      maxTokens: 3072,
     }),
   });
   const data = await res.json();
@@ -114,21 +106,18 @@ ${JSON.stringify(geminiData)}
 }
 
 async function fetchChatReply(history: { role: string; content: string }[], question: string) {
-  const res = await fetch(GROQ_API_URL, {
+  const res = await fetch('/api/groq-chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: 'You are a world-class interview analysis assistant. Answer user questions about their interview analysis in a concise, actionable, and friendly way.' },
         ...history,
         { role: 'user', content: question },
       ],
-      max_tokens: 512,
-      temperature: 0.4,
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
     }),
   });
   const data = await res.json();

@@ -6,9 +6,6 @@ import { Loader2, Sparkles } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-const GROQ_API_KEY = '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';
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
 async function fetchChatReply(
   geminiData: any,
   history: { role: string; content: string }[],
@@ -19,21 +16,18 @@ You have access to the following Gemini AI analysis data for this user's intervi
 ${JSON.stringify(geminiData)}
 Answer user questions about their interview analysis in a concise, actionable, and friendly way.`;
 
-  const res = await fetch(GROQ_API_URL, {
+  const res = await fetch('/api/groq-chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct', // Updated model
       messages: [
         { role: 'system', content: systemPrompt },
         ...history,
         { role: 'user', content: question },
       ],
-      max_tokens: 512,
-      temperature: 0.4,
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
     }),
   });
   const data = await res.json();

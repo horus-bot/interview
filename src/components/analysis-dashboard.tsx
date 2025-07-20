@@ -44,9 +44,6 @@ Chart.register(
   Title
 );
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
 // Improved system prompt for Llama
 async function fetchGroqAnalysis(geminiData: any) {
   const prompt = `
@@ -76,20 +73,14 @@ Here is the Gemini data:
 ${JSON.stringify(geminiData)}
 `;
 
-  const res = await fetch(GROQ_API_URL, {
+  const res = await fetch('/api/groq-analysis', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: 'You are a world-class interview analysis assistant.' },
-        { role: 'user', content: prompt },
-      ],
-      max_tokens: 2048,
-      temperature: 0.4,
+      text: prompt,
+      prompt: 'You are a world-class interview analysis assistant.',
     }),
   });
   const data = await res.json();
