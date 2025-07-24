@@ -108,8 +108,32 @@ ${JSON.stringify(geminiData)}
 }
 
 
-export function AnalysisDashboard({ videoUrl, analysis }: { videoUrl: string; analysis: ReasoningAnalysisOutput }) {
+export function AnalysisDashboard({ videoUrl, analysis: initialAnalysis }: { videoUrl: string; analysis: ReasoningAnalysisOutput }) {
   const router = useRouter();
+
+  const analysis = {
+    ...initialAnalysis,
+    videoAnalysis: initialAnalysis.videoAnalysis || {
+      posture: 'Not analyzed for this interview type.',
+      bodyLanguage: 'Not analyzed for this interview type.',
+      eyeContact: 'Not analyzed for this interview type.',
+    },
+    vocalAnalysis: initialAnalysis.vocalAnalysis || {
+      clarity: 'Not analyzed for this interview type.',
+      pacing: 'Not analyzed for this interview type.',
+      fillerWordCount: 0,
+      unprofessionalWordCount: 0,
+    },
+    contentAnalysis: initialAnalysis.contentAnalysis || {
+      answerClarity: 'Not analyzed for this interview type.',
+      relevance: 'Not analyzed for this interview type.',
+      improvementSuggestions: 'Not analyzed for this interview type.',
+    },
+    codingAnalysis: (initialAnalysis as any).codingAnalysis || null,
+    guidance: initialAnalysis.guidance || [],
+    interviewSummary: initialAnalysis.interviewSummary || 'No summary available.',
+    transcript: initialAnalysis.transcript || 'No transcript available.',
+  };
 
   // --- Ensure all score helpers are defined before use ---
   const calculateScore = (text: string): number => {
