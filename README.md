@@ -3,7 +3,7 @@
 > **Official Submission by Team Saksham**  
 > **Developer:** Harsh Srivastava  
 > **GitHub:** [@horus-bot](https://github.com/horus-bot)  
-> **Status:** 🔒 Not accepting Pull Requests (Official Competition Entry)
+> **Status:**  accepting Pull Requests 
 
 ---
 
