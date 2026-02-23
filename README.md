@@ -1,6 +1,5 @@
 # 🎯 Interview Insights - Advanced AI-Powered Interview Coach
 
-> **Official Submission by Team Saksham**  
 > **Developer:** Harsh Srivastava  
 > **GitHub:** [@horus-bot](https://github.com/horus-bot)  
 > **Status:**  accepting Pull Requests 
@@ -353,4 +352,3 @@ For technical support or questions about this competition entry, please contact:
 
 ---
 
-**Built with ❤️ by Team Saksham | Powered by Advanced AI Technologies**
