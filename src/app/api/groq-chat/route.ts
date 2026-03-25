@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, model = 'meta-llama/llama-4-scout-17b-16e-instruct' } = await request.json();
+    const { messages, model = 'llama-3.3-70b-versatile' } = await request.json();
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',

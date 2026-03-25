@@ -1,63 +1,173 @@
 
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { Bot, Code, User, ArrowRight } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Code, User, ArrowRight } from 'lucide-react';
 import { withAuth } from '@/context/auth-context';
+
+const styles = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '100vh',
+    backgroundColor: 'hsl(var(--background))',
+    color: 'hsl(var(--foreground))',
+    padding: '2rem',
+    fontFamily: 'system-ui, sans-serif',
+    position: 'relative' as const,
+  },
+  backButton: {
+    position: 'absolute' as const,
+    top: '1rem',
+    left: '1rem',
+    padding: '0.5rem 1rem',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: '0.375rem',
+    background: 'transparent',
+    color: 'hsl(var(--foreground))',
+    textDecoration: 'none',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  header: {
+    textAlign: 'center' as const,
+    marginBottom: '3rem',
+  },
+  title: {
+    fontSize: 'clamp(2.5rem, 5vw, 3.5rem)',
+    fontWeight: 800,
+    color: 'hsl(var(--primary))',
+    letterSpacing: '-0.05em',
+    marginBottom: '1rem',
+  },
+  subtitle: {
+    fontSize: '1.125rem',
+    color: 'hsl(var(--muted-foreground))',
+    maxWidth: '600px',
+    margin: '0 auto',
+    lineHeight: 1.6,
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '2rem',
+    width: '100%',
+    maxWidth: '900px',
+  },
+  card: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    backgroundColor: 'hsl(var(--card))',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: '1rem',
+    padding: '2rem',
+    textDecoration: 'none',
+    color: 'inherit',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+  },
+  iconWrapper: {
+    background: 'hsla(var(--primary), 0.1)',
+    color: 'hsl(var(--primary))',
+    padding: '1.25rem',
+    borderRadius: '50%',
+    display: 'inline-flex',
+    marginBottom: '1.5rem',
+    alignSelf: 'center',
+  },
+  cardTitle: {
+    fontSize: '1.5rem',
+    fontWeight: 'bold',
+    textAlign: 'center' as const,
+    marginBottom: '1rem',
+  },
+  cardDesc: {
+    fontSize: '1rem',
+    color: 'hsl(var(--muted-foreground))',
+    textAlign: 'center' as const,
+    lineHeight: 1.5,
+    marginBottom: '2rem',
+    flexGrow: 1,
+  },
+  startButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    width: '100%',
+    padding: '0.75rem',
+    backgroundColor: 'hsl(var(--primary))',
+    color: 'hsl(var(--primary-foreground))',
+    border: 'none',
+    borderRadius: '0.5rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
+  }
+};
+
+function InterviewCard({ type }: { type: any }) {
+  const [hovered, setHovered] = useState(false);
+  
+  return (
+    <Link 
+      href={type.href} 
+      style={{
+        ...styles.card,
+        transform: hovered ? 'translateY(-8px)' : 'none',
+        borderColor: hovered ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+        boxShadow: hovered ? '0 20px 25px -5px rgba(0, 0, 0, 0.1)' : styles.card.boxShadow
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div style={styles.iconWrapper}>
+          {type.icon}
+      </div>
+      <h2 style={styles.cardTitle}>{type.title}</h2>
+      <p style={styles.cardDesc}>{type.description}</p>
+      <div style={styles.startButton}>
+        Start Practice <ArrowRight size={18} />
+      </div>
+    </Link>
+  );
+}
 
 function InterviewHubPage() {
   const interviewTypes = [
     {
       title: 'Coding Interview',
       description: 'Solve technical problems in a simulated environment with a code editor and AI analysis.',
-      icon: <Code className="w-12 h-12 text-primary" />,
+      icon: <Code size={48} />,
       href: '/interview/coding',
     },
     {
       title: 'Behavioral Interview',
       description: 'Practice answering common HR and behavioral questions with our AI interviewer.',
-      icon: <User className="w-12 h-12 text-primary" />,
+      icon: <User size={48} />,
       href: '/interview/behavioral',
     },
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-       <div className="absolute top-4 left-4">
-          <Button asChild variant="outline">
-              <Link href="/">
-                  Back to Home
-              </Link>
-          </Button>
-      </div>
-      <div className="text-center mb-12">
-        <h1 className="text-5xl font-bold tracking-tighter text-primary">Choose Your Interview Type</h1>
-        <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+    <div style={styles.container}>
+      <Link href="/" style={styles.backButton}>
+        Back to Home
+      </Link>
+      
+      <div style={styles.header}>
+        <h1 style={styles.title}>Choose Your Interview Type</h1>
+        <p style={styles.subtitle}>
           Select the type of interview you want to practice. Each path is tailored with specific questions and analysis.
         </p>
       </div>
-      <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8">
+
+      <div style={styles.grid}>
         {interviewTypes.map((type) => (
-          <Link href={type.href} key={type.title} className="block group">
-            <Card className="h-full flex flex-col hover:shadow-xl hover:border-primary/50 transition-all duration-300 transform hover:-translate-y-1">
-              <CardHeader className="items-center text-center">
-                <div className="p-4 bg-primary/10 rounded-full mb-4">
-                    {type.icon}
-                </div>
-                <CardTitle className="text-2xl">{type.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-grow text-center">
-                <CardDescription>{type.description}</CardDescription>
-              </CardContent>
-              <div className="p-6 pt-0 mt-auto">
-                 <Button className="w-full">
-                    Start Practice <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            </Card>
-          </Link>
+          <InterviewCard key={type.title} type={type} />
         ))}
       </div>
     </div>

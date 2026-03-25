@@ -1,36 +1,62 @@
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
 
-import { cn } from "@/lib/utils"
+type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
-const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-  {
-    variants: {
-      variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
+export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: BadgeVariant
+}
+
+const getVariantStyle = (variant: BadgeVariant): React.CSSProperties => {
+  switch (variant) {
+    case "secondary":
+      return {
+        backgroundColor: "hsl(var(--secondary))",
+        color: "hsl(var(--secondary-foreground))",
+        borderColor: "transparent",
+      }
+    case "destructive":
+      return {
+        backgroundColor: "hsl(var(--destructive))",
+        color: "hsl(var(--destructive-foreground))",
+        borderColor: "transparent",
+      }
+    case "outline":
+      return {
+        backgroundColor: "transparent",
+        color: "hsl(var(--foreground))",
+        borderColor: "hsl(var(--border))",
+      }
+    case "default":
+    default:
+      return {
+        backgroundColor: "hsl(var(--primary))",
+        color: "hsl(var(--primary-foreground))",
+        borderColor: "transparent",
+      }
   }
-)
+}
 
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
-
-function Badge({ className, variant, ...props }: BadgeProps) {
+function Badge({ variant = "default", style, ...props }: BadgeProps) {
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        borderRadius: "9999px",
+        borderWidth: 1,
+        borderStyle: "solid",
+        padding: "0.125rem 0.625rem",
+        fontSize: "0.75rem",
+        fontWeight: 700,
+        ...getVariantStyle(variant),
+        ...style,
+      }}
+      {...props}
+    />
   )
 }
+
+// Kept for backward-compat with any existing imports.
+const badgeVariants = (_opts?: { variant?: BadgeVariant }) => ""
 
 export { Badge, badgeVariants }

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Mic, Video, Send, Bot, Code, Loader2, Volume2, VolumeX, MicOff, VideoOff, Play, Info, AlertTriangle, Camera } from 'lucide-react';
+import { ArrowLeft, Mic, Video, Send, Bot, Code, Loader2, Volume2, VolumeX, MicOff, VideoOff, Play, Info, AlertTriangle, Camera, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { withAuth } from '@/context/auth-context';
@@ -15,9 +15,47 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PermissionRequest } from '@/components/PermissionRequest';
+import { AICharacter } from '@/components/AICharacter';
 
 type Stage = 'setup' | 'connecting' | 'intro' | 'conceptual' | 'coding' | 'processing' | 'error';
 type InterviewerMessage = { speaker: 'ai' | 'user' | 'system'; text: string; audioUrl?: string };
+
+type BrowserSpeechRecognition = {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onresult: ((event: SpeechRecognitionEvent) => void) | null;
+    onstart: (() => void) | null;
+    onend: (() => void) | null;
+    onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+    start: () => void;
+    stop: () => void;
+};
+
+type SpeechRecognitionErrorEvent = Event & {
+    error: string;
+};
+
+type SpeechRecognitionResultItem = {
+    transcript: string;
+};
+
+type SpeechRecognitionResultLike = {
+    isFinal: boolean;
+    0: SpeechRecognitionResultItem;
+};
+
+type SpeechRecognitionEvent = Event & {
+    resultIndex: number;
+    results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+declare global {
+    interface Window {
+        webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+        SpeechRecognition?: new () => BrowserSpeechRecognition;
+    }
+}
 
 const roles = ["Python Developer", "ML Engineer", "Web Developer", "Data Analyst", "Database Manager"];
 const levels = ["Entry Level", "Mid Level", "Senior Level"];
@@ -40,13 +78,49 @@ function CodingInterviewPage() {
     const [ttsReady, setTtsReady] = useState(false);
     const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
     const [isRecording, setIsRecording] = useState(false);
+    const [spokenTranscript, setSpokenTranscript] = useState('');
+    const [isSpeechSupported, setIsSpeechSupported] = useState(false);
+    const [isSpeechListening, setIsSpeechListening] = useState(false);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordedChunksRef = useRef<Blob[]>([]);
+    const speechRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+    const shouldKeepListeningRef = useRef(false);
+    const finalizedTranscriptRef = useRef('');
+    const transcriptCheckpointRef = useRef(0);
 
     const { toast } = useToast();
     const router = useRouter();
+
+    const getBestRecorderOptions = useCallback((): MediaRecorderOptions => {
+        const preferredTypes = [
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm',
+            'video/mp4',
+        ];
+
+        const mediaRecorderSupportsType =
+            typeof MediaRecorder !== 'undefined' &&
+            typeof MediaRecorder.isTypeSupported === 'function';
+
+        if (mediaRecorderSupportsType) {
+            const supportedType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
+            if (supportedType) {
+                return {
+                    mimeType: supportedType,
+                    videoBitsPerSecond: 1000000,
+                    audioBitsPerSecond: 128000,
+                };
+            }
+        }
+
+        return {
+            videoBitsPerSecond: 1000000,
+            audioBitsPerSecond: 128000,
+        };
+    }, []);
 
     // Initialize TTS when component mounts
     useEffect(() => {
@@ -64,9 +138,126 @@ function CodingInterviewPage() {
         initTTS();
     }, []);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionCtor) {
+            setIsSpeechSupported(false);
+            return;
+        }
+
+        setIsSpeechSupported(true);
+        const recognition = new SpeechRecognitionCtor();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+            setIsSpeechListening(true);
+        };
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+            let newFinalText = '';
+            let interimText = '';
+
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const result = event.results[i];
+                const transcript = result?.[0]?.transcript?.trim();
+                if (!transcript) continue;
+
+                if (result.isFinal) {
+                    newFinalText += `${transcript} `;
+                } else {
+                    interimText += `${transcript} `;
+                }
+            }
+
+            if (newFinalText) {
+                finalizedTranscriptRef.current = `${finalizedTranscriptRef.current} ${newFinalText}`.trim();
+            }
+
+            setSpokenTranscript(`${finalizedTranscriptRef.current} ${interimText}`.trim());
+        };
+
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+            console.warn('Speech recognition error:', event.error);
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                toast({
+                    variant: 'destructive',
+                    title: 'Speech Recognition Blocked',
+                    description: 'Browser speech-to-text was denied. Enable microphone permissions to transcribe speech.',
+                });
+            }
+        };
+
+        recognition.onend = () => {
+            setIsSpeechListening(false);
+            if (shouldKeepListeningRef.current) {
+                try {
+                    recognition.start();
+                } catch {
+                    // Ignore start errors if already active
+                }
+            }
+        };
+
+        speechRecognitionRef.current = recognition;
+
+        return () => {
+            shouldKeepListeningRef.current = false;
+            try {
+                recognition.stop();
+            } catch {
+                // Ignore stop errors on cleanup
+            }
+        };
+    }, [toast]);
+
+    useEffect(() => {
+        const shouldListen =
+            !!hasPermission &&
+            isMicOn &&
+            (stage === 'intro' || stage === 'conceptual' || stage === 'coding') &&
+            !isAISpeaking;
+
+        shouldKeepListeningRef.current = shouldListen;
+
+        const recognition = speechRecognitionRef.current;
+        if (!recognition || !isSpeechSupported) return;
+
+        if (shouldListen && !isSpeechListening) {
+            try {
+                recognition.start();
+            } catch {
+                // Ignore start errors if already active
+            }
+        }
+
+        if (!shouldListen && isSpeechListening) {
+            try {
+                recognition.stop();
+            } catch {
+                // Ignore stop errors if already stopped
+            }
+        }
+    }, [hasPermission, isMicOn, isAISpeaking, isSpeechListening, isSpeechSupported, stage]);
+
+    // Keep preview video in sync even when the video element mounts after permission is granted
+    useEffect(() => {
+        if (videoRef.current && mediaStream) {
+            videoRef.current.srcObject = mediaStream;
+        }
+    }, [mediaStream, hasPermission]);
+
     // Handle successful permission grant
     const handlePermissionGranted = useCallback((stream: MediaStream) => {
         console.log('Permission granted, setting up media stream');
+
+        if (mediaStream) {
+            mediaStream.getTracks().forEach((track) => track.stop());
+        }
+
         setHasPermission(true);
         setMediaStream(stream);
         
@@ -77,14 +268,11 @@ function CodingInterviewPage() {
 
         // Set up MediaRecorder
         try {
-            const recorder = new MediaRecorder(stream, { 
-                mimeType: 'video/webm; codecs=vp8,opus',
-                videoBitsPerSecond: 1000000,
-                audioBitsPerSecond: 128000
-            });
+            const recorderOptions = getBestRecorderOptions();
+            const recorder = new MediaRecorder(stream, recorderOptions);
             
             mediaRecorderRef.current = recorder;
-            console.log('MediaRecorder created successfully');
+            console.log('MediaRecorder created successfully with type:', recorder.mimeType || 'default');
 
             recorder.ondataavailable = (event) => {
                 console.log('Data available:', event.data.size, 'bytes');
@@ -126,7 +314,7 @@ function CodingInterviewPage() {
             title: 'Camera & Microphone Ready',
             description: 'You can now start your coding interview.',
         });
-    }, [toast]);
+    }, [getBestRecorderOptions, mediaStream, toast]);
 
     // Handle permission error
     const handlePermissionError = useCallback((error: string) => {
@@ -161,7 +349,7 @@ function CodingInterviewPage() {
                 }, Math.max(text.length * 80, 3000));
                 
                 const checkSpeechEnd = () => {
-                    if (window.responsiveVoice && window.responsiveVoice.isPlaying()) {
+                    if (window.speechSynthesis && window.speechSynthesis.speaking) {
                         setTimeout(checkSpeechEnd, 500);
                     } else {
                         clearTimeout(speechTimeout);
@@ -201,7 +389,7 @@ function CodingInterviewPage() {
                 }, Math.max(text.length * 80, 3000));
                 
                 const checkSpeechEnd = () => {
-                    if (window.responsiveVoice && window.responsiveVoice.isPlaying()) {
+                    if (window.speechSynthesis && window.speechSynthesis.speaking) {
                         setTimeout(checkSpeechEnd, 500);
                     } else {
                         clearTimeout(speechTimeout);
@@ -245,12 +433,16 @@ function CodingInterviewPage() {
 
         setIsLoading(true);
         setStage('connecting');
+        setSpokenTranscript('');
+        finalizedTranscriptRef.current = '';
+        transcriptCheckpointRef.current = 0;
         
         try {
             const result = await generateCodingQuestions({
                 role: config.role,
                 level: config.level,
                 count: parseInt(config.numQuestions, 10),
+                resumeText: ''
             });
             
             if (result.questions.length > 0) {
@@ -291,16 +483,47 @@ function CodingInterviewPage() {
     const handleNextStage = async () => {
         if (isAISpeaking) return;
 
+        const currentTranscript = spokenTranscript.trim();
+        const segmentTranscript =
+            currentTranscript.length > transcriptCheckpointRef.current
+                ? currentTranscript.slice(transcriptCheckpointRef.current).trim()
+                : '';
+        transcriptCheckpointRef.current = currentTranscript.length;
+
         if (stage === 'intro') {
             setStage('conceptual');
-            setMessages(prev => [...prev, { speaker: 'user', text: '(Explains their background)'}]);
+            setMessages(prev => [...prev, { speaker: 'user', text: segmentTranscript || '(No speech transcript captured for introduction)'}]);
             await say(`Great. Now, let's discuss a concept. ${questions[currentQuestionIndex].question} How would you approach solving this problem?`);
         } else if (stage === 'conceptual') {
             setStage('coding');
-            setMessages(prev => [...prev, { speaker: 'user', text: '(Explains their approach)'}]);
+            setMessages(prev => [...prev, { speaker: 'user', text: segmentTranscript || '(No speech transcript captured for conceptual explanation)'}]);
             await say(`Interesting. Now please write the code for your solution.`);
         }
     };
+
+    const stopAiAndProceed = useCallback(async () => {
+        stopSpeech();
+        setIsAISpeaking(false);
+
+        if (stage === 'intro' || stage === 'conceptual') {
+            const currentTranscript = spokenTranscript.trim();
+            const segmentTranscript =
+                currentTranscript.length > transcriptCheckpointRef.current
+                    ? currentTranscript.slice(transcriptCheckpointRef.current).trim()
+                    : '';
+            transcriptCheckpointRef.current = currentTranscript.length;
+
+            if (stage === 'intro') {
+                setStage('conceptual');
+                setMessages(prev => [...prev, { speaker: 'user', text: segmentTranscript || '(Skipped while AI was speaking)'}]);
+                await say(`Great. Now, let's discuss a concept. ${questions[currentQuestionIndex].question} How would you approach solving this problem?`);
+            } else {
+                setStage('coding');
+                setMessages(prev => [...prev, { speaker: 'user', text: segmentTranscript || '(Skipped while AI was speaking)'}]);
+                await say(`Interesting. Now please write the code for your solution.`);
+            }
+        }
+    }, [stage, spokenTranscript, say, questions, currentQuestionIndex]);
 
     const handleFinishInterview = async () => {
         if (!mediaRecorderRef.current || !isRecording) {
@@ -314,6 +537,14 @@ function CodingInterviewPage() {
         
         console.log('Stopping recording...');
         setStage('processing');
+        shouldKeepListeningRef.current = false;
+        if (speechRecognitionRef.current) {
+            try {
+                speechRecognitionRef.current.stop();
+            } catch {
+                // Ignore stop errors
+            }
+        }
         mediaRecorderRef.current.stop();
 
         // Wait a bit for the onstop event to fire and collect all chunks
@@ -331,7 +562,8 @@ function CodingInterviewPage() {
                 return;
             }
 
-            const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+            const recordedMimeType = mediaRecorderRef.current?.mimeType || recordedChunksRef.current[0]?.type || 'video/webm';
+            const videoBlob = new Blob(recordedChunksRef.current, { type: recordedMimeType });
             console.log('Created video blob, size:', videoBlob.size, 'bytes');
             
             if (videoBlob.size === 0) {
@@ -345,51 +577,110 @@ function CodingInterviewPage() {
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = async () => {
-                try {
-                    setProcessingState({ progress: 30, message: 'Analyzing your code and performance...' });
-                    const videoDataUri = reader.result as string;
-                    console.log('Video data URI created, length:', videoDataUri.length);
-                    
-                    const analysisResult = await analyzeCodingAttempt({
-                        videoDataUri,
-                        question: questions[currentQuestionIndex].question,
-                        code: code,
-                        role: config.role,
-                        level: config.level,
-                    });
+            try {
+                setProcessingState({ progress: 25, message: 'Extracting key frames…' });
 
-                    setProcessingState({ progress: 90, message: 'Finalizing results...' });
-                    const videoUrl = URL.createObjectURL(videoBlob);
-                    sessionStorage.setItem('videoUrl', videoUrl);
-                    sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
-                    sessionStorage.setItem('analysisType', 'coding');
+                const extractFrameImagesFromBlob = async (blob: Blob, frameCount = 6) => {
+                    const url = URL.createObjectURL(blob);
+                    const video = document.createElement('video');
+                    video.src = url;
+                    video.muted = true;
+                    video.playsInline = true;
 
-                    setProcessingState({ progress: 100, message: 'Complete!' });
-                    router.push('/analysis');
-                } catch (error) {
-                    console.error('Analysis failed:', error);
-                    toast({ 
-                        variant: 'destructive', 
-                        title: 'Analysis Failed', 
-                        description: 'Could not analyze your submission.' 
-                    });
-                    setStage('error');
-                }
-            };
-            
-            reader.onerror = () => {
-                console.error('FileReader error');
-                toast({ 
-                    variant: 'destructive', 
-                    title: 'Processing Error', 
-                    description: 'Could not process the recording.' 
+                    const waitFor = (eventName: string) =>
+                        new Promise<void>((resolve, reject) => {
+                            const onError = () => {
+                                cleanup();
+                                reject(new Error(`Video failed to load (${eventName}).`));
+                            };
+                            const onOk = () => {
+                                cleanup();
+                                resolve();
+                            };
+                            const cleanup = () => {
+                                video.removeEventListener(eventName, onOk);
+                                video.removeEventListener('error', onError);
+                            };
+                            video.addEventListener(eventName, onOk, { once: true });
+                            video.addEventListener('error', onError, { once: true });
+                        });
+
+                    await waitFor('loadedmetadata');
+
+                    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+                    const totalDurationSeconds = Math.max(1, Math.round(duration || 0));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 360;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        URL.revokeObjectURL(url);
+                        throw new Error('Canvas context not available.');
+                    }
+
+                    const seekTo = (time: number) =>
+                        new Promise<void>((resolve, reject) => {
+                            const onSeeked = () => {
+                                cleanup();
+                                resolve();
+                            };
+                            const onError = () => {
+                                cleanup();
+                                reject(new Error('Video seek failed.'));
+                            };
+                            const cleanup = () => {
+                                video.removeEventListener('seeked', onSeeked);
+                                video.removeEventListener('error', onError);
+                            };
+                            video.addEventListener('seeked', onSeeked, { once: true });
+                            video.addEventListener('error', onError, { once: true });
+                            video.currentTime = Math.max(0, Math.min(duration || 0, time));
+                        });
+
+                    const framesToGrab = Math.min(10, Math.max(1, frameCount));
+                    const frameImages: string[] = [];
+                    for (let i = 0; i < framesToGrab; i++) {
+                        const t = duration > 0 ? (duration * (i + 1)) / (framesToGrab + 1) : 0;
+                        await seekTo(t);
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        frameImages.push(canvas.toDataURL('image/jpeg', 0.85));
+                    }
+
+                    URL.revokeObjectURL(url);
+                    return { frameImages, totalDurationSeconds };
+                };
+
+                const { frameImages, totalDurationSeconds } = await extractFrameImagesFromBlob(videoBlob, 1);
+
+                setProcessingState({ progress: 55, message: 'Analyzing your code and performance…' });
+                const analysisResult = await analyzeCodingAttempt({
+                    frameImages,
+                    totalDurationSeconds,
+                    question: questions[currentQuestionIndex].question,
+                    code: code,
+                    spokenTranscript: finalizedTranscriptRef.current.trim() || spokenTranscript.trim(),
+                    role: config.role,
+                    level: config.level,
+                    resumeText: '',
+                });
+
+                setProcessingState({ progress: 90, message: 'Finalizing results…' });
+                const videoUrl = URL.createObjectURL(videoBlob);
+                sessionStorage.setItem('videoUrl', videoUrl);
+                sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
+                sessionStorage.setItem('analysisType', 'coding');
+
+                setProcessingState({ progress: 100, message: 'Complete!' });
+                router.push('/analysis');
+            } catch (error) {
+                console.error('Analysis failed:', error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Analysis Failed',
+                    description: 'Could not analyze your submission.',
                 });
                 setStage('error');
-            };
-            
-            reader.readAsDataURL(videoBlob);
+            }
         }, 1000); // Give more time for chunks to be collected
     };
 
@@ -431,77 +722,80 @@ function CodingInterviewPage() {
         switch (stage) {
             case 'setup':
                 return (
-                    <div className="p-6 space-y-6">
-                        <div className="text-center">
-                            <Code className="h-12 w-12 text-primary mx-auto mb-4"/>
-                            <h2 className="text-2xl font-bold">Coding Interview Setup</h2>
-                            <p className="text-muted-foreground mt-2">Configure your technical interview</p>
+                    <div style={{ maxWidth: '42rem', margin: '0 auto', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.75rem', backgroundColor: '#e0e7ff', color: '#4f46e5', borderRadius: '1rem', marginBottom: '1.5rem', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', border: '1px solid #c7d2fe' }}>
+                                <Code style={{ width: '2rem', height: '2rem' }} />
+                            </div>
+                            <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold', letterSpacing: '-0.025em', color: '#0f172a', marginBottom: '0.75rem' }}>Coding Interview Setup</h2>
+                            <p style={{ color: '#64748b', maxWidth: '28rem', margin: '0 auto' }}>Configure your technical interview parameters to match your career goals.</p>
                             
                             {/* Recording Warning */}
-                            <Alert className="mt-4 mb-4 border-amber-500 bg-amber-50 text-amber-800">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle className="text-amber-800">Recording Notice</AlertTitle>
-                                <AlertDescription className="text-amber-700">
+                            <Alert style={{ marginTop: '2rem', textAlign: 'left', backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#78350f' }}>
+                                <AlertTriangle style={{ width: '1rem', height: '1rem', color: '#d97706' }} />
+                                <AlertTitle style={{ fontWeight: '600', color: '#92400e' }}>Recording Notice</AlertTitle>
+                                <AlertDescription style={{ color: '#b45309', marginTop: '0.25rem', opacity: 0.9 }}>
                                     <strong>You are being recorded and will be judged on your coding and communication.</strong><br />
                                     Please behave professionally during this technical interview.
                                 </AlertDescription>
                             </Alert>
 
-                            <div className="flex items-center justify-center gap-2 mb-4">
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '1.5rem' }}>
                                 <Button
                                     variant={audioEnabled ? "default" : "outline"}
                                     size="sm"
                                     onClick={toggleAudio}
-                                    className="flex items-center gap-2"
+                                    style={{ borderRadius: '9999px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}
                                 >
-                                    {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                                    {audioEnabled ? <Volume2 style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} /> : <VolumeX style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />}
                                     {audioEnabled ? 'AI Voice ON' : 'AI Voice OFF'}
                                 </Button>
-                                <span className="text-xs text-muted-foreground">
-                                    {ttsReady ? '(Audio ready)' : '(Loading audio...)'}
+                                <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#94a3b8' }}>
+                                    {ttsReady ? 'TTS Ready' : '(Loading audio...)'}
                                 </span>
                             </div>
 
                             {/* Media Status Indicator */}
-                            <div className="text-center mb-4">
-                                <div className="flex items-center justify-center gap-4">
-                                    <div className="flex items-center gap-1">
-                                        <div className={`w-2 h-2 rounded-full ${hasPermission ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                        <span className="text-sm">Camera & Mic</span>
+                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '1.5rem', padding: '0.625rem 1.25rem', backgroundColor: '#f1f5f9', borderRadius: '9999px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <div style={{ width: '0.625rem', height: '0.625rem', borderRadius: '9999px', backgroundColor: hasPermission ? '#10b981' : '#f43f5e', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}></div>
+                                        <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#334155' }}>Camera & Mic</span>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <div className={`w-2 h-2 rounded-full ${mediaRecorderRef.current ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                                        <span className="text-sm">Recording Ready</span>
+                                    <div style={{ width: '1px', height: '1rem', backgroundColor: '#cbd5e1' }}></div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <div style={{ width: '0.625rem', height: '0.625rem', borderRadius: '9999px', backgroundColor: mediaRecorderRef.current ? '#10b981' : '#fbbf24', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}></div>
+                                        <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#334155' }}>Recording Ready</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         
-                        <div className="grid gap-4">
-                            <div>
-                                <label className="text-sm font-medium">Role</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', marginBottom: '2rem' }}>
+                            <div style={{ gap: '0.5rem', display: 'flex', flexDirection: 'column' }}>
+                                <label style={{ fontSize: '0.875rem', fontWeight: '500', color: '#334155', marginLeft: '0.25rem' }}>Role</label>
                                 <Select value={config.role} onValueChange={value => setConfig(prev => ({...prev, role: value}))}>
-                                    <SelectTrigger><SelectValue placeholder="Select role"/></SelectTrigger>
+                                    <SelectTrigger style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}><SelectValue placeholder="Select role"/></SelectTrigger>
                                     <SelectContent>
                                         {roles.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
                             
-                            <div>
-                                <label className="text-sm font-medium">Experience Level</label>
+                            <div style={{ gap: '0.5rem', display: 'flex', flexDirection: 'column' }}>
+                                <label style={{ fontSize: '0.875rem', fontWeight: '500', color: '#334155', marginLeft: '0.25rem' }}>Experience Level</label>
                                 <Select value={config.level} onValueChange={value => setConfig(prev => ({...prev, level: value}))}>
-                                    <SelectTrigger><SelectValue placeholder="Select level"/></SelectTrigger>
+                                    <SelectTrigger style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}><SelectValue placeholder="Select level"/></SelectTrigger>
                                     <SelectContent>
                                         {levels.map(level => <SelectItem key={level} value={level}>{level}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
                             
-                            <div>
-                                <label className="text-sm font-medium">Number of Questions</label>
+                            <div style={{ gap: '0.5rem', display: 'flex', flexDirection: 'column' }}>
+                                <label style={{ fontSize: '0.875rem', fontWeight: '500', color: '#334155', marginLeft: '0.25rem' }}>Questions</label>
                                 <Select value={config.numQuestions} onValueChange={value => setConfig(prev => ({...prev, numQuestions: value}))}>
-                                    <SelectTrigger><SelectValue placeholder="Select count"/></SelectTrigger>
+                                    <SelectTrigger style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}><SelectValue placeholder="Count"/></SelectTrigger>
                                     <SelectContent>
                                         {questionCounts.map(count => <SelectItem key={count} value={count}>{count}</SelectItem>)}
                                     </SelectContent>
@@ -511,17 +805,17 @@ function CodingInterviewPage() {
                         
                         <Button 
                             onClick={handleStartInterview} 
-                            className="w-full" 
+                            style={{ width: '100%', height: '3.5rem', fontSize: '1rem', fontWeight: '500', borderRadius: '0.75rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', transition: 'all 0.2s', backgroundColor: '#4f46e5', color: '#ffffff', opacity: (isLoading || !hasPermission || !mediaRecorderRef.current) ? 0.5 : 1 }} 
                             size="lg" 
                             disabled={isLoading || !hasPermission || !mediaRecorderRef.current}
                         >
                             {isLoading ? (
-                                <>
-                                    <Loader2 className="mr-2 animate-spin"/> 
-                                    Generating Questions...
-                                </>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <Loader2 style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.75rem' }} /> 
+                                    Loading AI Engine...
+                                </div>
                             ) : (
-                                <>Start Interview</>
+                                <>Start Interview session</>
                             )}
                         </Button>
                     </div>
@@ -529,107 +823,151 @@ function CodingInterviewPage() {
 
             case 'connecting':
                 return (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                        <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
-                        <h2 className="text-2xl font-bold">AI Interviewer is joining...</h2>
-                        {audioEnabled && <p className="text-sm text-muted-foreground mt-2">Listen for the introduction...</p>}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1.5rem', textAlign: 'center' }}>
+                        <AICharacter isSpeaking={false} />
+                        <div>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.5rem' }}>Connecting to AI Interviewer...</h2>
+                            {audioEnabled && <p style={{ color: '#64748b' }}>Please wait while we establish the secure connection.</p>}
+                        </div>
                     </div>
                 );
 
             case 'intro':
             case 'conceptual':
                 return (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                        <div className="flex items-center gap-4 my-4">
-                            {isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse text-primary" />}
-                            {lastMessage?.speaker === 'ai' && <h2 className="text-3xl font-bold">"{lastMessage.text}"</h2>}
-                        </div>
-                        
-                        {lastMessage?.speaker === 'ai' && !isAISpeaking && (
-                            <div className="flex gap-2 mt-4 mb-6">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => playMessageAudio(lastMessage.text)}
-                                    disabled={isAISpeaking || !ttsReady}
-                                    className="flex items-center gap-2"
-                                >
-                                    <Volume2 className="h-4 w-4" />
-                                    {isAISpeaking ? 'Playing...' : 'Listen Again'}
-                                </Button>
-                                
-                                <Button
-                                    variant={audioEnabled ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={toggleAudio}
-                                    className="flex items-center gap-2"
-                                >
-                                    {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                                    {audioEnabled ? 'Voice ON' : 'Voice OFF'}
-                                </Button>
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxWidth: '48rem', margin: '0 auto', paddingTop: '2rem', paddingBottom: '2rem' }}>
+                        <div style={{ flex: '1', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center', gap: '2rem' }}>
+                            <div style={{ padding: '2rem', borderRadius: '1.5rem', transition: 'all 0.5s', backgroundColor: isAISpeaking ? '#eef2ff' : '#f8fafc', transform: isAISpeaking ? 'scale(1.05)' : 'scale(1)' }}>
+                                {lastMessage?.speaker === 'ai' && (
+                                    <AICharacter isSpeaking={isAISpeaking} />
+                                )}
+
+                                {lastMessage?.speaker === 'ai' && (
+                                    <h2 style={{ fontSize: '1.5rem', fontWeight: '500', lineHeight: '1.625', letterSpacing: '-0.025em', color: isAISpeaking ? '#312e81' : '#334155' }}>
+                                        "{lastMessage.text}"
+                                    </h2>
+                                )}
                             </div>
-                        )}
                         
-                        <div className="mt-6 bg-primary/20 text-primary-foreground p-4 rounded-lg flex items-center gap-2">
-                            <Info className="h-5 w-5" />
-                            <p className="font-medium text-sm">
-                                {isAISpeaking 
-                                    ? "AI is speaking. Listen carefully..." 
-                                    : stage === 'intro' 
-                                        ? "Introduce yourself and your experience with this technology."
-                                        : "Explain your approach to solving this problem conceptually."
-                                }
-                            </p>
+                            {lastMessage?.speaker === 'ai' && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                    <Button
+                                        variant="outline"
+                                        size="lg"
+                                        onClick={() => playMessageAudio(lastMessage.text)}
+                                        disabled={isAISpeaking || !ttsReady}
+                                        style={{ borderRadius: '9999px', paddingLeft: '1.5rem', paddingRight: '1.5rem' }}
+                                    >
+                                        <Volume2 style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+                                        {isAISpeaking ? 'Playing...' : 'Play Again'}
+                                    </Button>
+                                    
+                                    <Button
+                                        variant={audioEnabled ? "default" : "outline"}
+                                        size="lg"
+                                        onClick={toggleAudio}
+                                        style={{ borderRadius: '9999px', paddingLeft: '1.5rem', paddingRight: '1.5rem' }}
+                                    >
+                                        {audioEnabled ? <Volume2 style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} /> : <VolumeX style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />}
+                                        {audioEnabled ? 'Voice ON' : 'Voice OFF'}
+                                    </Button>
+
+                                    {isAISpeaking && (
+                                        <Button
+                                            size="lg"
+                                            onClick={stopAiAndProceed}
+                                            style={{ borderRadius: '9999px', paddingLeft: '1.5rem', paddingRight: '1.5rem', backgroundColor: '#0f172a', color: '#ffffff' }}
+                                        >
+                                            <SkipForward style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+                                            Stop AI & Continue
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         
-                        <Button onClick={handleNextStage} className="mt-6" size="lg" disabled={isAISpeaking}>
-                            {stage === 'intro' ? 'Continue to Technical Discussion' : 'Start Coding'}
-                        </Button>
+                        <div style={{ marginTop: 'auto', paddingTop: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', backgroundColor: '#eff6ff', color: '#1e40af', borderRadius: '1rem', marginBottom: '2rem', border: '1px solid #dbeafe', width: '100%', maxWidth: '36rem' }}>
+                                <Info style={{ width: '1.25rem', height: '1.25rem', flexShrink: 0 }} />
+                                <p style={{ fontSize: '0.875rem', fontWeight: '500' }}>
+                                    {isAISpeaking 
+                                        ? "AI is speaking. Please listen carefully..." 
+                                        : stage === 'intro' 
+                                            ? "Introduce yourself and your experience with this technology. When ready, continue."
+                                            : "Explain your approach to solving this problem conceptually. When ready, begin coding."
+                                    }
+                                </p>
+                            </div>
+
+                            <Button 
+                                onClick={handleNextStage} 
+                                style={{ width: '100%', maxWidth: '28rem', height: '3.5rem', fontSize: '1.125rem', borderRadius: '1rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', transition: 'all 0.2s', backgroundColor: '#0f172a', color: '#ffffff' }}
+                                size="lg" 
+                                disabled={isAISpeaking}
+                            >
+                                {stage === 'intro' ? 'Continue to Technical Discussion' : 'Start Coding'}
+                            </Button>
+                        </div>
                     </div>
                 );
 
             case 'coding':
                 return (
-                    <div className="p-4 h-full flex flex-col">
-                        <div className="mb-4 bg-primary/20 text-primary-foreground p-3 rounded-lg">
-                            <h3 className="font-semibold text-lg">{questions[currentQuestionIndex].question}</h3>
-                            <p className="text-sm mt-1 opacity-90">Topic: {questions[currentQuestionIndex].topic}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '1.5rem' }}>
+                        <div style={{ padding: '1.5rem', backgroundColor: '#f8fafc', borderRadius: '1rem', border: '1px solid #e2e8f0', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                <span style={{ padding: '0.25rem 0.625rem', backgroundColor: '#e0e7ff', color: '#4338ca', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Question {currentQuestionIndex + 1}
+                                </span>
+                                <span style={{ padding: '0.25rem 0.625rem', backgroundColor: '#e2e8f0', color: '#334155', fontSize: '0.75rem', fontWeight: '600', borderRadius: '0.5rem' }}>
+                                    {questions[currentQuestionIndex].topic}
+                                </span>
+                            </div>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#0f172a', lineHeight: '1.375' }}>
+                                {questions[currentQuestionIndex].question}
+                            </h3>
                         </div>
                         
-                        <Card className="flex-grow flex flex-col">
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-lg flex items-center justify-between">
-                                    Code Editor
-                                    {audioEnabled && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => playMessageAudio("Now please write the code for your solution.")}
-                                            disabled={isAISpeaking}
-                                            className="flex items-center gap-2"
-                                        >
-                                            <Volume2 className="h-4 w-4" />
-                                            Replay Instruction
-                                        </Button>
-                                    )}
-                                </CardTitle>
-                                <CardDescription>Write your solution below and explain your approach</CardDescription>
+                        <Card style={{ flex: '1', display: 'flex', flexDirection: 'column', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', overflow: 'hidden', minHeight: '400px' }}>
+                            <CardHeader style={{ paddingTop: '1rem', paddingBottom: '1rem', paddingLeft: '1.5rem', paddingRight: '1.5rem', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', flexShrink: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div>
+                                    <CardTitle style={{ fontSize: '1.125rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <Code style={{ width: '1.25rem', height: '1.25rem', color: '#6366f1' }} />
+                                        Code Editor
+                                    </CardTitle>
+                                    <CardDescription style={{ marginTop: '0.25rem' }}>Write your solution and talk through your approach</CardDescription>
+                                </div>
+                                {audioEnabled && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => playMessageAudio("Now please write the code for your solution.")}
+                                        disabled={isAISpeaking}
+                                        style={{ borderRadius: '9999px' }}
+                                    >
+                                        <Volume2 style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+                                        Replay Instruction
+                                    </Button>
+                                )}
                             </CardHeader>
-                            <CardContent className="flex-grow flex flex-col">
+                            <CardContent style={{ flex: '1', padding: '0', display: 'flex', flexDirection: 'column', backgroundColor: '#1e1e1e', position: 'relative' }}>
                                 <Textarea 
+                                    style={{ flex: '1', width: '100%', resize: 'none', border: '0', outline: 'none', borderRadius: '0', backgroundColor: 'transparent', color: '#cbd5e1', fontFamily: 'monospace', padding: '1.5rem', fontSize: '0.875rem', lineHeight: '1.625' }}
                                     value={code} 
                                     onChange={e => setCode(e.target.value)} 
-                                    placeholder="Type your code here..." 
-                                    className="flex-grow font-mono text-sm resize-none" 
+                                    placeholder="// Type your code here...
+// Explain your thought process aloud while you type." 
                                 />
-                                <Button 
-                                    onClick={handleFinishInterview} 
-                                    className="w-full mt-4"
-                                    disabled={!isRecording}
-                                >
-                                    <Send className="mr-2"/>
-                                    {isRecording ? 'Finish & Analyze' : 'Recording Not Active'}
-                                </Button>
+                                <div style={{ position: 'absolute', bottom: '1.5rem', right: '1.5rem' }}>
+                                    <Button 
+                                        onClick={handleFinishInterview} 
+                                        style={{ height: '3rem', paddingLeft: '1.5rem', paddingRight: '1.5rem', borderRadius: '0.75rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', backgroundColor: '#4f46e5', color: '#ffffff', fontWeight: '500' }}
+                                        disabled={!isRecording}
+                                    >
+                                        <Send style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+                                        {isRecording ? 'Submit & Analyze' : 'Recording Not Active'}
+                                    </Button>
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
@@ -637,19 +975,43 @@ function CodingInterviewPage() {
 
             case 'processing':
                 return (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                        <h2 className="text-2xl font-bold mb-4">{processingState.message}</h2>
-                        <Progress value={processingState.progress} className="w-full max-w-md"/>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', maxWidth: '28rem', margin: '0 auto', gap: '2rem' }}>
+                        <div style={{ width: '6rem', height: '6rem', marginBottom: '1rem', position: 'relative' }}>
+                            <div style={{ position: 'absolute', inset: '0', backgroundColor: '#6366f1', borderRadius: '9999px', filter: 'blur(20px)', opacity: '0.2' }}></div>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', backgroundColor: '#ffffff', borderRadius: '1rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', border: '1px solid #cbd5e1' }}>
+                                <Loader2 style={{ width: '2.5rem', height: '2.5rem', color: '#4f46e5' }} />
+                            </div>
+                        </div>
+                        <div style={{ textAlign: 'center', gap: '1rem', width: '100%' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0f172a' }}>{processingState.message}</h2>
+                            <p style={{ color: '#64748b' }}>Please keep this window open while we process your interview.</p>
+                            <div style={{ gap: '0.5rem', paddingTop: '1rem' }}>
+                                <Progress value={processingState.progress} style={{ height: '0.5rem', backgroundColor: '#f1f5f9' }} />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: '500', color: '#94a3b8' }}>
+                                    <span>Processing</span>
+                                    <span>{processingState.progress}%</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 );
 
             case 'error':
                 return (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                        <h2 className="text-2xl font-bold">Analysis Failed!</h2>
-                        <p className="text-muted-foreground mt-2 mb-6">Something went wrong. Would you like to retry?</p>
-                        <Button onClick={() => window.location.reload()} size="lg">
-                            <Play className="mr-2"/> Restart Interview
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', gap: '1.5rem' }}>
+                        <div style={{ width: '5rem', height: '5rem', backgroundColor: '#ffe4e6', borderRadius: '9999px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#e11d48', marginBottom: '0.5rem' }}>
+                            <AlertTriangle style={{ width: '2.5rem', height: '2.5rem' }} />
+                        </div>
+                        <div>
+                            <h2 style={{ fontSize: '1.875rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.75rem' }}>Analysis Failed</h2>
+                            <p style={{ color: '#64748b', maxWidth: '24rem', margin: '0 auto' }}>Something went wrong while processing your interview data. Please try again.</p>
+                        </div>
+                        <Button 
+                            onClick={() => window.location.reload()} 
+                            size="lg"
+                            style={{ borderRadius: '9999px', marginTop: '1rem' }}
+                        >
+                            <Play style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} /> Restart Interview
                         </Button>
                     </div>
                 );
@@ -657,82 +1019,106 @@ function CodingInterviewPage() {
     };
 
     return (
-        <div className="flex flex-col h-screen bg-gray-900 text-white">
-            <header className="p-4 flex justify-between items-center border-b border-gray-700">
-                <Button asChild variant="outline" className="bg-transparent hover:bg-gray-800 border-gray-700">
-                    <Link href="/interview"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f8fafc', color: '#0f172a', transition: 'background-color 0.3s, color 0.3s' }}>
+            <header style={{ position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.5rem', backgroundColor: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}>
+                <Button asChild variant="ghost" style={{ transition: 'background-color 0.2s' }}>
+                    <Link href="/interview" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><ArrowLeft style={{ width: '1rem', height: '1rem' }} />Back</Link>
                 </Button>
-                <div className="text-lg font-semibold flex items-center gap-2">
-                    <Code /> 
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', fontSize: '1.125rem', letterSpacing: '-0.025em' }}>
+                    <div style={{ padding: '0.5rem', backgroundColor: '#e0e7ff', color: '#4f46e5', borderRadius: '0.5rem' }}>
+                        <Code style={{ width: '1.25rem', height: '1.25rem' }} /> 
+                    </div>
                     Coding Mock Interview
                     {isRecording && (
-                        <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.25rem 0.625rem', fontSize: '0.75rem', fontWeight: '500', color: '#dc2626', backgroundColor: '#fee2e2', borderRadius: '9999px', border: '1px solid #fecaca' }}>
+                            <div style={{ width: '0.5rem', height: '0.5rem', backgroundColor: '#dc2626', borderRadius: '9999px' }}></div>
                             RECORDING
                         </span>
                     )}
                 </div>
-                <div />
+                <div style={{ width: '6rem', textAlign: 'right' }}>
+                    {/* Placeholder for symmetry */}
+                </div>
             </header>
             
-            <main className="flex-1 grid md:grid-cols-2 gap-4 p-4 overflow-hidden">
-                <div className="bg-gray-800 rounded-lg flex items-center justify-center relative">
-                    <div className="flex items-center justify-center h-full w-full">{renderContent()}</div>
+            <main style={{ flex: '1', display: 'flex', flexDirection: 'row', padding: '1rem', gap: '1.5rem', maxWidth: '1600px', margin: '0 auto', width: '100%', height: 'calc(100vh - 80px)' }}>
+                {/* Left Panel: Content */}
+                <div style={{ flex: '1', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', overflow: 'hidden', position: 'relative' }}>
+                    <div style={{ flex: '1', overflowY: 'auto', padding: '1.5rem' }}>
+                        {renderContent()}
+                    </div>
                 </div>
-                <div className="bg-gray-800 rounded-lg relative overflow-hidden flex items-center justify-center">
-                    {hasPermission ? (
-                        <>
-                            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                            
-                            <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
-                                <p className="font-semibold">You</p>
-                            </div>
-                            
-                            {isRecording && (
-                                <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
-                                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                                    REC
-                                </div>
-                            )}
-                            
-                            {isRecording && (
-                                <div className="absolute top-4 left-4 bg-red-600/90 text-white px-3 py-2 rounded-lg">
-                                    <div className="flex items-center gap-2 text-sm font-medium">
-                                        <AlertTriangle className="h-4 w-4" />
-                                        Being Analyzed
+
+                {/* Right Panel: Video & Status */}
+                <div style={{ width: '400px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ position: 'relative', aspectRatio: '16/9', backgroundColor: '#0f172a', borderRadius: '1rem', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}>
+                        {hasPermission ? (
+                            <>
+                                <video 
+                                    ref={videoRef}  
+                                    autoPlay 
+                                    muted 
+                                    playsInline 
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                                
+                                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '1rem', background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <div style={{ padding: '0.25rem 0.75rem', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)', borderRadius: '9999px', color: '#ffffff', fontSize: '0.75rem', fontWeight: '500', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            You
+                                        </div>
                                     </div>
-                                    <p className="text-xs mt-1">Code & performance review</p>
+                                    
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <Button 
+                                            variant={isMicOn ? 'secondary' : 'destructive'} 
+                                            size="icon" 
+                                            style={{ height: '2.5rem', width: '2.5rem', borderRadius: '9999px', backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff' }}
+                                            onClick={toggleMic} 
+                                            disabled={!hasPermission || stage === 'setup' || stage === 'processing'}
+                                        >
+                                            {isMicOn ? <Mic style={{ width: '1rem', height: '1rem' }} /> : <MicOff style={{ width: '1rem', height: '1rem' }} />}
+                                        </Button>
+                                        <Button 
+                                            variant={isCameraOn ? 'secondary' : 'destructive'} 
+                                            size="icon" 
+                                            style={{ height: '2.5rem', width: '2.5rem', borderRadius: '9999px', backdropFilter: 'blur(12px)', backgroundColor: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff' }}
+                                            onClick={toggleCamera} 
+                                            disabled={!hasPermission || stage === 'setup' || stage === 'processing'}
+                                        >
+                                            {isCameraOn ? <Video style={{ width: '1rem', height: '1rem' }} /> : <VideoOff style={{ width: '1rem', height: '1rem' }} />}
+                                        </Button>
+                                    </div>
                                 </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-                            <Camera className="h-16 w-16 text-gray-400 mb-4" />
-                            <p className="text-gray-400">Camera will appear here once permissions are granted</p>
-                        </div>
-                    )}
+                                
+                                {isRecording && (
+                                    <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0.75rem', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)', borderRadius: '9999px', color: '#ffffff', fontSize: '0.75rem', fontWeight: '600', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                        <div style={{ width: '0.5rem', height: '0.5rem', borderRadius: '9999px', backgroundColor: '#ef4444' }}></div>
+                                        REC
+                                    </div>
+                                )}
+                                
+                                {isRecording && (
+                                    <div style={{ position: 'absolute', top: '1rem', left: '1rem', maxWidth: '200px', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(79, 70, 229, 0.9)', backdropFilter: 'blur(12px)', borderRadius: '0.75rem', color: '#ffffff', fontSize: '0.75rem', fontWeight: '500', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', border: '1px solid rgba(129, 140, 248, 0.3)' }}>
+                                        <AlertTriangle style={{ width: '1rem', height: '1rem', flexShrink: 0, color: '#c7d2fe' }} />
+                                        <div>
+                                            <p style={{ fontWeight: '600', marginBottom: '0.125rem' }}>Being Analyzed</p>
+                                            <p style={{ color: '#c7d2fe', fontSize: '10px', lineHeight: '1.2', opacity: '0.9' }}>Code & performance review in progress</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#94a3b8', gap: '1rem', backgroundColor: '#f1f5f9' }}>
+                                <div style={{ padding: '1rem', backgroundColor: '#ffffff', borderRadius: '9999px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}>
+                                    <Camera style={{ width: '2rem', height: '2rem' }} />
+                                </div>
+                                <p style={{ fontSize: '0.875rem', fontWeight: '500', textAlign: 'center', paddingLeft: '2rem', paddingRight: '2rem' }}>Camera will appear here once permissions are granted</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </main>
-            
-            <footer className="p-4 flex justify-center items-center space-x-4 bg-gray-900/80 border-t border-gray-700">
-                <Button 
-                    variant={isMicOn ? 'secondary' : 'destructive'} 
-                    size="icon" 
-                    className="rounded-full w-14 h-14" 
-                    onClick={toggleMic} 
-                    disabled={!hasPermission || stage === 'setup' || stage === 'processing'}
-                >
-                    {isMicOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
-                </Button>
-                <Button 
-                    variant={isCameraOn ? 'secondary' : 'destructive'} 
-                    size="icon" 
-                    className="rounded-full w-14 h-14" 
-                    onClick={toggleCamera} 
-                    disabled={!hasPermission || stage === 'setup' || stage === 'processing'}
-                >
-                    {isCameraOn ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
-                </Button>
-            </footer>
         </div>
     );
 }

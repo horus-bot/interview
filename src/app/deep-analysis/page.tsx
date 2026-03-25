@@ -96,7 +96,7 @@ ${JSON.stringify(geminiData)}
     body: JSON.stringify({
       text: prompt,
       prompt: 'You are a world-class interview analysis assistant.',
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: 'llama-3.3-70b-versatile',
       maxTokens: 3072,
     }),
   });
@@ -117,7 +117,7 @@ async function fetchChatReply(history: { role: string; content: string }[], ques
         ...history,
         { role: 'user', content: question },
       ],
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: 'llama-3.3-70b-versatile',
     }),
   });
   const data = await res.json();
@@ -160,31 +160,31 @@ export default function DeepAnalysisPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 flex flex-col items-center">
-      <div className="w-full max-w-3xl">
-        <Button variant="outline" onClick={() => router.back()} className="mb-6">
+    <div >
+      <div >
+        <Button variant="outline" onClick={() => router.back()} >
           Back
         </Button>
-        <Card className="mb-8">
+        <Card >
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary" /> Deep Interview Analysis 
+            <CardTitle >
+              <Sparkles  /> Deep Interview Analysis 
             </CardTitle>
           </CardHeader>
           <CardContent>
             {loading && (
-              <div className="flex flex-col items-center justify-center p-8">
-                <Loader2 className="animate-spin h-8 w-8 mb-4 text-primary" />
-                <p className="text-lg font-semibold text-primary">Analyzing ...</p>
+              <div >
+                <Loader2  />
+                <p >Analyzing ...</p>
               </div>
             )}
             {!loading && !analysis && (
-              <div className="text-red-500">No analysis data found. Please upload and analyze an interview first.</div>
+              <div >No analysis data found. Please upload and analyze an interview first.</div>
             )}
             {!loading && analysis && (
               <>
-                <h2 className="text-2xl font-bold mb-2 text-primary">{analysis.title}</h2>
-                <p className="mb-6 text-muted-foreground text-lg">{analysis.summary}</p>
+                <h2 >{analysis.title}</h2>
+                <p >{analysis.summary}</p>
                 {/**
                  * Chart.js v3+ uses 'scales' instead of 'yAxes'/'xAxes' or 'scale'.
                  * This helper will convert legacy options to the correct format.
@@ -359,32 +359,32 @@ export default function DeepAnalysisPage() {
                       ? section.text.split(/\n+|(?<=\.)\s{2,}/g).filter(Boolean)
                       : [];
                     return (
-                      <div key={idx} className="mb-12 px-2 py-4 rounded-lg bg-muted/40 shadow-sm">
-                        <h3 className="text-2xl font-extrabold mb-2 text-primary font-serif tracking-tight leading-tight">{section.heading}</h3>
+                      <div key={idx} >
+                        <h3 >{section.heading}</h3>
                         {section.subheading && (
-                          <h4 className="text-lg font-semibold mb-3 text-accent-foreground font-mono tracking-wide uppercase">{section.subheading}</h4>
+                          <h4 >{section.subheading}</h4>
                         )}
-                        <div className="mb-4 space-y-4">
+                        <div >
                           {paragraphs.length > 0
                             ? paragraphs.map((para: string, i: number) => (
-                                <p key={i} className="text-base md:text-lg text-foreground font-sans leading-relaxed indent-6">
+                                <p key={i} >
                                   {para.trim()}
                                 </p>
                               ))
-                            : <p className="text-base md:text-lg text-foreground font-sans leading-relaxed">{section.text}</p>}
+                            : <p >{section.text}</p>}
                         </div>
                         {section.chartType === 'radar' && section.chartData && Radar && (
-                          <div className="mb-6">
+                          <div >
                             <Radar data={enhanceChartColors(section.chartData, 'radar')} options={fixChartOptions(section.chartOptions, 'radar')} />
                           </div>
                         )}
                         {section.chartType === 'line' && section.chartData && Line && (
-                          <div className="mb-6">
+                          <div >
                             <Line data={enhanceChartColors(section.chartData, 'line')} options={fixChartOptions(section.chartOptions, 'line')} />
                           </div>
                         )}
                         {section.chartType === 'pie' && section.chartData && Pie && (
-                          <div className="mb-6">
+                          <div >
                             <Pie data={enhanceChartColors(section.chartData, 'pie')} options={fixChartOptions(section.chartOptions, 'pie')} />
                           </div>
                         )}
@@ -400,14 +400,14 @@ export default function DeepAnalysisPage() {
 
         {/* Brutal Interview Scoring Section */}
         {!loading && analysis && geminiData && (
-          <Card className="mt-8 mb-8">
+          <Card >
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-6 w-6 text-primary" /> Interview Scoring
+              <CardTitle >
+                <Sparkles  /> Interview Scoring
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div style={{ display: 'grid', gap: '1rem' }}>
                 {(() => {
                   // Example: extract or synthesize 10 criteria from geminiData
                   // You can adjust these keys to match your actual Gemini data structure
@@ -441,17 +441,50 @@ export default function DeepAnalysisPage() {
                   }
                   return criteria.map((c, i) => {
                     const score = getScore(c.key);
-                    let color = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-400' : 'bg-red-500';
+                    const barColor =
+                      score >= 80
+                        ? 'hsl(var(--primary))'
+                        : score >= 60
+                          ? 'hsl(var(--secondary))'
+                          : 'hsl(var(--destructive))';
                     return (
-                      <div key={i} className="flex flex-col gap-1">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-semibold text-foreground text-sm md:text-base">{c.label}</span>
-                          <span className="font-mono text-xs md:text-sm text-primary">{score}/100</span>
+                      <div
+                        key={i}
+                        style={{
+                          display: 'grid',
+                          gap: '0.5rem',
+                          paddingBottom: '0.75rem',
+                          borderBottom: '1px solid hsl(var(--border))',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            justifyContent: 'space-between',
+                            gap: '1rem',
+                          }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{c.label}</span>
+                          <span style={{ color: 'hsl(var(--muted-foreground))' }}>{score}/100</span>
                         </div>
-                        <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
+                        <div
+                          style={{
+                            height: '0.6rem',
+                            width: '100%',
+                            borderRadius: '9999px',
+                            backgroundColor: 'hsl(var(--muted))',
+                            overflow: 'hidden',
+                          }}
+                        >
                           <div
-                            className={`h-full ${color} transition-all duration-500`}
-                            style={{ width: `${score}%` }}
+                            style={{
+                              width: `${score}%`,
+                              height: '100%',
+                              borderRadius: '9999px',
+                              backgroundColor: barColor,
+                              transition: 'width 500ms ease',
+                            }}
                           ></div>
                         </div>
                       </div>
@@ -465,18 +498,18 @@ export default function DeepAnalysisPage() {
 
         {/* Suggestions Section */}
         {!loading && analysis && Array.isArray(analysis.suggestions) && analysis.suggestions.length > 0 && (
-          <Card className="mb-8">
+          <Card >
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-6 w-6 text-primary" /> Timestamped Suggestions
+              <CardTitle >
+                <Sparkles  /> Timestamped Suggestions
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-4">
+              <ul >
                 {analysis.suggestions.map((s: any, i: number) => (
-                  <li key={i} className="flex gap-4 items-start">
-                    <span className="font-mono text-xs bg-muted px-2 py-1 rounded text-primary mt-1 min-w-[56px] text-center">{s.timestamp}</span>
-                    <span className="text-base text-foreground">{s.text}</span>
+                  <li key={i} >
+                    <span >{s.timestamp}</span>
+                    <span >{s.text}</span>
                   </li>
                 ))}
               </ul>

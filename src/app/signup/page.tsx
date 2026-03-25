@@ -6,8 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { signUpWithEmailAndPassword as signUpLocal } from '@/lib/local-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,70 +34,62 @@ export default function SignupPage() {
 
   const onSubmit = async (data: FormValues) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      
-      // Check if the user is new
-      const isNewUser = userCredential.user.metadata.creationTime === userCredential.user.metadata.lastSignInTime;
+      signUpLocal(data.email, data.password);
 
       toast({
         title: 'Account Created',
         description: "You've been successfully signed up!",
       });
 
-      if(isNewUser) {
-        router.push('/my-analyses');
-      } else {
-        router.push('/');
+      router.push('/my-analyses');
+    } catch (error: any) {
+      if (error?.message === 'EMAIL_ALREADY_IN_USE') {
+        toast({
+          variant: 'destructive',
+          title: 'Sign Up Failed',
+          description: 'This email address is already in use.',
+        });
+        return;
       }
 
-    } catch (error: any) {
-        if (error.code === 'auth/email-already-in-use') {
-            toast({
-                variant: 'destructive',
-                title: 'Sign Up Failed',
-                description: 'This email address is already in use.',
-            });
-        } else {
-            toast({
-                variant: 'destructive',
-                title: 'Sign Up Failed',
-                description: error.message,
-            });
-        }
+      toast({
+        variant: 'destructive',
+        title: 'Sign Up Failed',
+        description: 'Unable to create account. Please try again.',
+      });
     }
   };
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
-      <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
-       <div className="absolute top-4 left-4">
+    <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'hsl(var(--background))', padding: '1rem', position: 'relative' }}>
+       <div style={{ position: 'absolute', top: '1rem', left: '1rem' }}>
           <Button asChild variant="outline">
-              <Link href="/">
+              <Link href="/" style={{ textDecoration: 'none' }}>
                   Back to Home
               </Link>
           </Button>
       </div>
-      <Card className="w-full max-w-sm shadow-2xl bg-card/90 backdrop-blur-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="flex justify-center items-center gap-2 text-2xl">
-            <Bot className="h-8 w-8 text-primary" />
+      <Card style={{ width: '100%', maxWidth: '400px', padding: '2rem', borderRadius: '1rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+        <CardHeader style={{ textAlign: 'center', paddingBottom: '2rem' }}>
+          <CardTitle style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', fontSize: '1.75rem', color: 'hsl(var(--primary))' }}>
+            <Bot size={40} style={{ color: 'hsl(var(--primary))', marginBottom: '0.5rem' }} />
             Create an Account
           </CardTitle>
-          <CardDescription>Join Interview Insights to start improving.</CardDescription>
+          <CardDescription style={{ fontSize: '0.9rem', color: 'hsl(var(--muted-foreground))' }}>Join Interview Insights to start improving.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
+                  <FormItem style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <FormLabel style={{ fontWeight: 600 }}>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="you@example.com" {...field} />
+                      <Input placeholder="you@example.com" {...field} style={{ padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid hsl(var(--border))' }} />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage style={{ color: 'hsl(var(--destructive))', fontSize: '0.8rem' }} />
                   </FormItem>
                 )}
               />
@@ -106,24 +97,24 @@ export default function SignupPage() {
                 control={form.control}
                 name="password"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
+                  <FormItem style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <FormLabel style={{ fontWeight: 600 }}>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
+                      <Input type="password" placeholder="••••••••" {...field} style={{ padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid hsl(var(--border))' }} />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage style={{ color: 'hsl(var(--destructive))', fontSize: '0.8rem' }} />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+              <Button type="submit" disabled={form.formState.isSubmitting} style={{ width: '100%', marginTop: '1rem', padding: '0.75rem', fontSize: '1rem', borderRadius: '0.5rem' }}>
                 {form.formState.isSubmitting ? 'Creating Account...' : 'Sign Up'}
-                <UserPlus className="ml-2 h-4 w-4" />
+                <UserPlus size={18} style={{ marginLeft: '0.5rem' }} />
               </Button>
             </form>
           </Form>
-          <div className="mt-4 text-center text-sm">
+          <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.9rem', color: 'hsl(var(--muted-foreground))' }}>
             Already have an account?{' '}
-            <Link href="/login" className="font-semibold text-primary hover:underline">
+            <Link href="/login" style={{ color: 'hsl(var(--primary))', textDecoration: 'none', fontWeight: 600 }}>
               Login
             </Link>
           </div>

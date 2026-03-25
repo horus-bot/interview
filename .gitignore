@@ -8,7 +8,7 @@
 .yarnrc.yml
 .yarnrc
 .yarn-integrity
-
+.next-build
 # Build output
 /.next/
 out/

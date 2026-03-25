@@ -27,7 +27,7 @@ Answer user questions about their interview analysis in a concise, actionable, a
         ...history,
         { role: 'user', content: question },
       ],
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: 'llama-3.3-70b-versatile',
     }),
   });
   const data = await res.json();
@@ -61,50 +61,109 @@ export default function ChatCoachPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 flex flex-col items-center">
-      <div className="w-full max-w-2xl">
-        <Button variant="outline" onClick={() => router.back()} className="mb-6">
-          Back
-        </Button>
-        <Card>
+    <div style={{ minHeight: '100vh', backgroundColor: 'hsl(var(--background))', color: 'hsl(var(--foreground))', padding: '1.5rem' }}>
+      <div style={{ maxWidth: '48rem', margin: '0 auto', display: 'grid', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+          <Button variant="outline" onClick={() => router.back()}>
+            Back
+          </Button>
+        </div>
+
+        <Card style={{ overflow: 'hidden' }}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-pink-500" /> Interview Coach Chat (Llama 3)
+            <CardTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Sparkles size={20} style={{ color: 'hsl(var(--primary))' }} /> Interview Coach Chat (Llama 3)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-4 h-[32rem]">
-              <div className="flex-1 overflow-y-auto bg-muted rounded p-3 mb-2" style={{ minHeight: '14rem', maxHeight: '20rem' }}>
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <div
+                style={{
+                  height: '32rem',
+                  overflowY: 'auto',
+                  backgroundColor: 'hsl(var(--muted))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '0.75rem',
+                  padding: '0.75rem',
+                }}
+              >
                 {chatHistory.length === 0 && (
-                  <div className="text-muted-foreground text-center mt-8">Ask the coach anything about your interview performance!</div>
-                )}
-                {chatHistory.map((msg, idx) => (
-                  <div key={idx} className={`mb-3 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`rounded-lg px-4 py-2 max-w-[80%] text-sm shadow ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-card border text-foreground'}`}>
-                      {msg.content}
-                    </div>
+                  <div style={{ color: 'hsl(var(--muted-foreground))', textAlign: 'center', padding: '2rem 1rem' }}>
+                    Ask the coach anything about your interview performance.
                   </div>
-                ))}
+                )}
+
+                {chatHistory.map((msg, idx) => {
+                  const isUser = msg.role === 'user';
+                  return (
+                    <div key={idx} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '0.75rem' }}>
+                      <div
+                        style={{
+                          maxWidth: '80%',
+                          borderRadius: '0.75rem',
+                          padding: '0.75rem 1rem',
+                          fontSize: '0.95rem',
+                          lineHeight: 1.5,
+                          boxShadow: '0 8px 16px rgba(0,0,0,0.08)',
+                          backgroundColor: isUser ? 'hsl(var(--primary))' : 'hsl(var(--card))',
+                          color: isUser ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
+                          border: isUser ? 'none' : '1px solid hsl(var(--border))',
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {msg.content}
+                      </div>
+                    </div>
+                  );
+                })}
+
                 {chatLoading && (
-                  <div className="flex justify-start mb-3">
-                    <div className="rounded-lg px-4 py-2 bg-card border text-foreground max-w-[80%] text-sm shadow flex items-center gap-2">
-                      <Loader2 className="animate-spin h-4 w-4 mr-2 text-primary" />
-                      Thinking...
+                  <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        borderRadius: '0.75rem',
+                        padding: '0.75rem 1rem',
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        color: 'hsl(var(--foreground))',
+                      }}
+                    >
+                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                      Thinking…
                     </div>
                   </div>
                 )}
               </div>
-              <form className="flex gap-2 mt-auto" onSubmit={e => { e.preventDefault(); handleChatSend(); }}>
+
+              <form
+                style={{ display: 'flex', gap: '0.5rem' }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleChatSend();
+                }}
+              >
                 <input
-                  className="flex-1 rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   type="text"
-                  placeholder="Ask your interview coach..."
+                  placeholder={geminiData ? 'Ask your interview coach…' : 'Run an analysis first (upload/interview), then come back.'}
                   value={chatInput}
-                  onChange={e => setChatInput(e.target.value)}
-                  disabled={chatLoading}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  disabled={chatLoading || !geminiData}
                   autoFocus
+                  style={{
+                    flex: 1,
+                    borderRadius: '0.5rem',
+                    border: '1px solid hsl(var(--border))',
+                    backgroundColor: 'hsl(var(--background))',
+                    color: 'hsl(var(--foreground))',
+                    padding: '0.75rem 1rem',
+                    fontSize: '1rem',
+                    outline: 'none',
+                  }}
                 />
-                <Button type="submit" disabled={chatLoading || !chatInput.trim() || !geminiData} className="bg-gradient-to-r from-pink-500 to-yellow-400 text-white shadow">
+                <Button type="submit" disabled={chatLoading || !chatInput.trim() || !geminiData}>
                   Send
                 </Button>
               </form>

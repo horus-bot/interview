@@ -2,20 +2,24 @@
 
 import { z } from 'zod';
 import Groq from 'groq-sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 // Initialize both APIs
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const LLAVA_ANALYSIS_API_URL = process.env.LLAVA_ANALYSIS_API_URL || 'http://127.0.0.1:8000/analyze';
 
 // Schema definitions (keep existing schemas)
 const GenerateCodingQuestionsInputSchema = z.object({
   role: z.string().describe('The role for the interview (e.g., Python Developer)'),
   level: z.string().describe('The experience level (Entry Level, Mid Level, Senior Level)'),
   count: z.number().describe('Number of questions to generate'),
+  resumeText: z.string().describe('Candidate resume text used for personalization.'),
 });
 
 const CodingQuestionSchema = z.object({
@@ -28,16 +32,43 @@ const GenerateCodingQuestionsOutputSchema = z.object({
 });
 
 const AnalyzeCodingAttemptInputSchema = z.object({
-  videoDataUri: z.string(),
   question: z.string(),
   code: z.string(),
+  spokenTranscript: z.string().optional().default(''),
   role: z.string(),
   level: z.string(),
+  resumeText: z.string(),
+  frameImages: z.array(z.string()).min(1).max(10),
+  totalDurationSeconds: z.number().positive(),
 });
 
 const AnalyzeCodingAttemptOutputSchema = z.object({
   transcript: z.string(),
   score: z.number().min(0).max(100),
+  scoreBreakdown: z.object({
+    codeQuality: z.number().min(0).max(100),
+    problemSolving: z.number().min(0).max(100),
+    visualConfidence: z.number().min(0).max(100),
+    grammar: z.number().min(0).max(100),
+    fluency: z.number().min(0).max(100),
+  }).default({
+    codeQuality: 0,
+    problemSolving: 0,
+    visualConfidence: 0,
+    grammar: 0,
+    fluency: 0,
+  }),
+  visualFrameAnalysis: z.string().default('No visual frame analysis available.'),
+  questionByQuestionAnalysis: z.array(z.object({
+    question: z.string(),
+    score: z.number().min(0).max(100),
+    findings: z.string(),
+    drawnFrom: z.object({
+      code: z.string(),
+      spokenExplanation: z.string(),
+      visualFrame: z.string(),
+    }),
+  })).default([]),
   feedback: z.object({
     strengths: z.array(z.string()),
     improvements: z.array(z.string()),
@@ -53,10 +84,43 @@ export type CodingQuestion = z.infer<typeof CodingQuestionSchema>;
 export type AnalyzeCodingAttemptInput = z.infer<typeof AnalyzeCodingAttemptInputSchema>;
 export type AnalyzeCodingAttemptOutput = z.infer<typeof AnalyzeCodingAttemptOutputSchema>;
 
+async function analyzeFrameWithLlava(frameDataUri: string): Promise<string> {
+  const base64Payload = frameDataUri.includes(',') ? frameDataUri.split(',')[1] : frameDataUri;
+  const buffer = Buffer.from(base64Payload, 'base64');
+  const fileBlob = new Blob([buffer], { type: 'image/jpeg' });
+
+  const formData = new FormData();
+  formData.append('file', fileBlob, 'frame.jpg');
+
+  const response = await fetch(LLAVA_ANALYSIS_API_URL, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`LLaVA API error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  const data = await response.json() as { analysis?: string };
+  if (!data?.analysis || typeof data.analysis !== 'string') {
+    throw new Error('LLaVA API returned invalid analysis payload.');
+  }
+
+  return data.analysis;
+}
+
 // Fixed: Updated Groq model name
 export async function generateCodingQuestions(input: GenerateCodingQuestionsInput): Promise<GenerateCodingQuestionsOutput> {
   try {
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('Missing GROQ_API_KEY environment variable.');
+    }
+
     const prompt = `You are an expert technical interviewer with 10+ years of experience. Generate ${input.count} highly personalized coding interview questions for a ${input.level} ${input.role} position.
+
+CANDIDATE RESUME:
+${input.resumeText}
 
 REQUIREMENTS:
 - Questions must be practical and directly relevant to ${input.role} daily work
@@ -64,6 +128,8 @@ REQUIREMENTS:
 - Include real-world scenarios they'd encounter in this role
 - Focus on problem-solving skills and technical depth
 - Avoid generic leetcode-style problems - make them job-specific
+- Use resume details (projects, tools, stack, achievements) to tailor every question
+- If resume has missing detail, infer reasonable scenarios from the listed stack only
 
 ROLE-SPECIFIC FOCUS:
 ${getRoleSpecificGuidance(input.role, input.level)}
@@ -91,7 +157,7 @@ Generate exactly ${input.count} question(s).`;
           content: prompt
         }
       ],
-      model: "meta-llama/llama-4-scout-17b-16e-instruct", // Updated to the new model
+      model: "llama-3.3-70b-versatile", // Use a valid Groq model
       temperature: 0.8,
       max_tokens: 2000,
     });
@@ -106,118 +172,32 @@ Generate exactly ${input.count} question(s).`;
     
     return validatedOutput;
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating coding questions with Groq:', error);
-    
-    // Enhanced fallback questions based on role and level
-    const getFallbackQuestions = (role: string, level: string): CodingQuestion[] => {
-      const roleQuestions: Record<string, CodingQuestion[]> = {
-        "Python Developer": [
-          {
-            question: "Design a REST API endpoint for a user management system. Include input validation, error handling, and database operations. Show how you would structure the code for maintainability.",
-            topic: "API Development & Architecture"
-          },
-          {
-            question: "Implement a data processing pipeline that handles CSV file uploads, validates the data, and stores it in a database. Include error handling for malformed data.",
-            topic: "Data Processing & Validation"
-          },
-          {
-            question: "Create a caching mechanism for expensive database queries. Explain your strategy for cache invalidation and handling race conditions.",
-            topic: "Performance Optimization"
-          }
-        ],
-        "ML Engineer": [
-          {
-            question: "Design a machine learning pipeline for real-time prediction serving. Include model loading, preprocessing, prediction, and monitoring components.",
-            topic: "ML Pipeline Architecture"
-          },
-          {
-            question: "Implement a feature store system that can handle both batch and streaming data. Show how you would ensure data consistency and versioning.",
-            topic: "Feature Engineering"
-          },
-          {
-            question: "Create a model evaluation framework that compares multiple models and selects the best one based on business metrics.",
-            topic: "Model Evaluation"
-          }
-        ],
-        "Web Developer": [
-          {
-            question: "Build a real-time notification system for a web application. Include WebSocket implementation, message queuing, and user presence detection.",
-            topic: "Real-time Systems"
-          },
-          {
-            question: "Design a shopping cart component with state management, local storage persistence, and optimistic updates. Handle concurrent modifications.",
-            topic: "Frontend State Management"
-          },
-          {
-            question: "Implement a file upload system with progress tracking, chunk uploading, and resume capability. Include both frontend and backend code.",
-            topic: "File Upload Systems"
-          }
-        ],
-        "Data Analyst": [
-          {
-            question: "Create a data analysis script that processes sales data, identifies trends, and generates automated reports. Include data cleaning and visualization.",
-            topic: "Data Analysis & Reporting"
-          },
-          {
-            question: "Build a dashboard that displays KPIs from multiple data sources. Show how you would handle data refresh, caching, and user interactions.",
-            topic: "Dashboard Development"
-          },
-          {
-            question: "Implement a SQL query optimization system that analyzes and improves slow-running queries. Include performance monitoring.",
-            topic: "Query Optimization"
-          }
-        ],
-        "Database Manager": [
-          {
-            question: "Design a database schema for a multi-tenant SaaS application. Include data isolation, indexing strategy, and migration procedures.",
-            topic: "Database Design"
-          },
-          {
-            question: "Implement a database backup and recovery system with point-in-time recovery capability. Show monitoring and alerting components.",
-            topic: "Backup & Recovery"
-          },
-          {
-            question: "Create a database performance monitoring tool that identifies bottlenecks and suggests optimizations. Include query analysis.",
-            topic: "Performance Monitoring"
-          }
-        ]
-      };
-
-      const questions = roleQuestions[role] || roleQuestions["Python Developer"];
-      
-      if (level === "Entry Level") {
-        return questions.map(q => ({
-          ...q,
-          question: q.question + " Focus on basic implementation and explain your reasoning step by step."
-        }));
-      } else if (level === "Senior Level") {
-        return questions.map(q => ({
-          ...q,
-          question: q.question + " Consider scalability, security, and maintainability in your solution. Discuss trade-offs and alternative approaches."
-        }));
-      }
-      
-      return questions;
-    };
-    
-    const fallbackQuestions = getFallbackQuestions(input.role, input.level);
-    return { questions: fallbackQuestions.slice(0, input.count) };
+    throw new Error(`Groq question generation failed: ${error?.message || 'Unknown error'}`);
   }
 }
 
 // Fixed: Server-side analysis without browser APIs
 export async function analyzeCodingAttempt(input: AnalyzeCodingAttemptInput): Promise<AnalyzeCodingAttemptOutput> {
   try {
-    // Use Gemini 1.5 Flash for cost efficiency
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('Missing GROQ_API_KEY environment variable.');
+    }
 
-    // Extract base64 data from data URI (already compressed from client)
-    const videoData = input.videoDataUri.includes(',') 
-      ? input.videoDataUri.split(',')[1] 
-      : input.videoDataUri;
+    // Phase 1: Use LLaVA API on a single representative frame for visual analysis
+    let visualAnalysisSummary = 'Visual analysis unavailable. Proceeding with code and transcript analysis only.';
     
-    const analysisPrompt = `You are an expert technical interviewer analyzing a ${input.level} ${input.role} coding interview submission.
+    try {
+      const selectedFrameIndex = Math.floor((input.frameImages.length - 1) / 2);
+      const selectedFrame = input.frameImages[selectedFrameIndex] || input.frameImages[0];
+      visualAnalysisSummary = await analyzeFrameWithLlava(selectedFrame);
+    } catch (llavaError: any) {
+      console.warn('LLaVA frame analysis failed, proceeding without visual frame analysis:', llavaError?.message || llavaError);
+    }
+
+    // Phase 2: Complete analysis with Groq utilizing local API visual summary, transcript, resume, and code
+    const groqPrompt = `You are an expert technical interviewer analyzing a ${input.level} ${input.role} coding interview submission.
 
 INTERVIEW CONTEXT:
 - Role: ${input.role}
@@ -227,157 +207,117 @@ INTERVIEW CONTEXT:
 CANDIDATE'S SUBMITTED CODE:
 ${input.code}
 
-Please analyze both the VIDEO/AUDIO content and the WRITTEN CODE to provide comprehensive feedback.
+CANDIDATE'S SPOKEN EXPLANATION (browser speech-to-text):
+${input.spokenTranscript || 'No spoken transcript provided.'}
+
+CANDIDATE RESUME:
+${input.resumeText}
+
+VISUAL FRAME ANALYSIS (from LLaVA API):
+${visualAnalysisSummary}
+
+Please combine the local API visual frame analysis (used here as video-analysis proxy), the candidate's custom coding submission, and their resume baseline to provide comprehensive feedback.
 
 ANALYSIS REQUIREMENTS:
-1. VIDEO/AUDIO ANALYSIS:
-   - Communication clarity and confidence
-   - Problem-solving thought process (verbal explanation)
-   - Technical presentation skills
-   - Body language and professionalism
+1. OVERALL EVALUATION:
+  - Treat the local API frame analysis as the visual/video signal source.
+  - Do not invent timeline or multi-frame events that are not present in that input.
+  - Combine visual signal with code correctness to evaluate confidence and skill.
+  - Use the spoken explanation to assess communication clarity and reasoning quality.
+   - Alignment between resume-claimed skills and actual code quality.
+   - Is the delivery interview-ready for a real coding round?
 
 2. CODE ANALYSIS:
-   - Correctness and functionality
-   - Code quality and best practices
-   - Algorithm efficiency (time/space complexity)
-   - Readability and maintainability
-   - Relevance to ${input.role} role requirements
+   - Correctness and functionality.
+   - Code quality, best practices, and readability.
+   - Algorithm efficiency (time/space complexity).
+   - Relevance to ${input.role} role requirements.
 
-3. OVERALL ASSESSMENT:
-   - How well does the candidate explain their solution?
-   - Do they demonstrate deep understanding of the concepts?
-   - Are they communicating effectively during problem-solving?
-   - Overall interview performance for ${input.level} level
+3. AUDIO TRANSCRIPT ANALYSIS:
+  - Evaluate whether the spoken explanation matches the implemented code.
+  - Highlight mismatches between stated approach and actual implementation.
+  - Analyze only the spoken transcript text for language quality.
+  - Score grammar quality from the spoken transcript (sentence structure, correctness, clarity).
+  - Score fluency from the spoken transcript (flow, coherence, phrasing quality).
 
 Format your response as a JSON object:
 {
-  "transcript": "Brief summary of what the candidate demonstrated in video and code",
+  "transcript": "Brief chronological summary combining visual confidence assessment (if available) and code strategy",
   "score": 85,
+  "scoreBreakdown": {
+    "codeQuality": 84,
+    "problemSolving": 80,
+    "visualConfidence": 76,
+    "grammar": 72,
+    "fluency": 70
+  },
+  "visualFrameAnalysis": "Specific findings from the local API one-frame image analysis.",
+  "questionByQuestionAnalysis": [
+    {
+      "question": "Exact interview question text",
+      "score": 84,
+      "findings": "Specific analysis for this question",
+      "drawnFrom": {
+        "code": "What was inferred from submitted code",
+        "spokenExplanation": "What was inferred from spoken transcript",
+        "visualFrame": "What was inferred from the single visual frame"
+      }
+    }
+  ],
   "feedback": {
-    "strengths": ["Specific strengths observed from video and code analysis"],
-    "improvements": ["Specific areas for improvement from both video and code"], 
+    "strengths": ["Specific strengths observed from video body language (if available) and code analysis"],
+    "improvements": ["Specific areas for improvement from both video (if available) and code"], 
     "codeQuality": "Detailed assessment of the submitted code quality and correctness",
-    "problemSolving": "Assessment of problem-solving approach demonstrated in video",
-    "communication": "Assessment of verbal communication and explanation skills from video"
+    "problemSolving": "Assessment of problem-solving approach demonstrated in code combined with observed stress levels (if available)",
+    "communication": "Assessment of visual communication, body language, and implicit explanation skills from video (if available)"
   }
 }
 
-Provide specific, actionable feedback based on both the video performance and code submission.`;
+Respond ONLY with valid JSON. No markdown wrappers around the JSON.`;
 
-    const result = await model.generateContent([
-      {
-        text: analysisPrompt
-      },
-      {
-        inlineData: {
-          mimeType: "video/mp4",
-          data: videoData
+    const groqCompletion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert technical interviewer and strict JSON generator. Use only provided inputs, treat local API frame analysis as the visual/video source, avoid fabricating unseen events, and return only raw valid JSON."
+        },
+        {
+          role: "user",
+          content: groqPrompt
         }
-      }
-    ]);
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 2500,
+    });
 
-    const response = result.response.text();
-    
-    // Extract JSON from the response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Invalid response format from Gemini');
+    const response = groqCompletion.choices[0]?.message?.content;
+    if (!response) {
+      throw new Error('No response from Groq API');
     }
 
-    const parsedResponse = JSON.parse(jsonMatch[0]);
+    // Extract JSON from the response if any markdown is returned
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    const jsonString = jsonMatch ? jsonMatch[0] : response;
+
+    const parsedResponse = JSON.parse(jsonString);
     return AnalyzeCodingAttemptOutputSchema.parse(parsedResponse);
     
   } catch (error) {
-    console.error('Error analyzing coding attempt with Gemini Flash:', error);
+    console.error('Error analyzing coding attempt:', error);
     
-    // Enhanced fallback analysis
-    const codeAnalysis = analyzeCodeFallback(input.code);
-    
-    return {
-      transcript: `Analysis completed using fallback method. Code review performed for ${input.role} ${input.level} position.`,
-      score: codeAnalysis.score,
-      feedback: {
-        strengths: codeAnalysis.strengths,
-        improvements: codeAnalysis.improvements,
-        codeQuality: codeAnalysis.codeQuality,
-        problemSolving: `Demonstrated ${input.level.toLowerCase()} level approach to problem-solving. Focus on systematic breakdown of requirements and implementation planning.`,
-        communication: "Video analysis unavailable in fallback mode. Consider practicing verbal explanation of coding thought process during interviews."
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes('LLaVA') || error.message.includes('11434') || error.message.includes('analyze')) {
+        throw new Error('LLaVA API issue. Ensure your FastAPI service is running and reachable at LLAVA_ANALYSIS_API_URL.');
       }
-    };
+      if (error.message.includes('GROQ_API_KEY') || error.message.includes('groq')) {
+        throw new Error('Groq API key issue. Please verify GROQ_API_KEY configuration.');
+      }
+    }
+    
+    throw new Error('Analysis failed. Please check API keys and try again.');
   }
-}
-
-// Enhanced fallback code analysis helper
-function analyzeCodeFallback(code: string) {
-  const codeLength = code.length;
-  const hasComments = /\/\/|\/\*|\#/.test(code);
-  const hasProperIndentation = code.includes('  ') || code.includes('\t');
-  const hasFunctions = /def |function |const \w+\s*=|class /.test(code);
-  const hasErrorHandling = /try|catch|except|if.*error|throw/.test(code);
-  const hasVariableNames = /\b[a-z][a-zA-Z0-9_]*\b/.test(code);
-
-  let score = 60; // Base score
-  const strengths = [];
-  const improvements = [];
-
-  // Scoring logic
-  if (codeLength > 100) {
-    score += 10;
-    strengths.push("Provided substantial code implementation");
-  }
-  
-  if (hasComments) {
-    score += 5;
-    strengths.push("Included helpful comments in code");
-  } else {
-    improvements.push("Add comments to explain complex logic");
-  }
-
-  if (hasProperIndentation) {
-    score += 10;
-    strengths.push("Maintained proper code formatting");
-  } else {
-    improvements.push("Improve code indentation and formatting");
-  }
-
-  if (hasFunctions) {
-    score += 10;
-    strengths.push("Structured code with functions/classes");
-  } else {
-    improvements.push("Break code into reusable functions");
-  }
-
-  if (hasErrorHandling) {
-    score += 10;
-    strengths.push("Included error handling mechanisms");
-  } else {
-    improvements.push("Add error handling for edge cases");
-  }
-
-  if (hasVariableNames) {
-    score += 5;
-    strengths.push("Used descriptive variable names");
-  }
-
-  // Default improvements if none found
-  if (improvements.length === 0) {
-    improvements.push("Consider optimizing algorithm complexity");
-    improvements.push("Add more comprehensive test cases");
-  }
-
-  // Default strengths if none found  
-  if (strengths.length === 0) {
-    strengths.push("Attempted to solve the problem systematically");
-    strengths.push("Demonstrated basic programming concepts");
-  }
-
-  const codeQuality = codeLength > 200 
-    ? "Code shows good structure and implementation. Consider adding more documentation and edge case handling."
-    : codeLength > 50
-    ? "Code demonstrates understanding but could be more comprehensive. Focus on completeness and robustness."
-    : "Code appears minimal or incomplete. Provide more detailed implementation with proper structure.";
-
-  return { score: Math.min(score, 100), strengths, improvements, codeQuality };
 }
 
 // Helper function for role-specific guidance

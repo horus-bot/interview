@@ -17,25 +17,25 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 const improvementAreas = [
   {
-    icon: <PersonStanding className="h-8 w-8 text-primary" />,
+    icon: <PersonStanding  />,
     title: 'Posture Practice',
     description: 'Check your posture in real-time to appear more confident.',
     component: 'PosturePractice',
   },
   {
-    icon: <Eye className="h-8 w-8 text-primary" />,
+    icon: <Eye  />,
     title: 'Eye Contact Training',
     description: 'Practice maintaining steady eye contact with an on-screen guide.',
     component: 'EyeContactTraining',
   },
   {
-    icon: <MicVocal className="h-8 w-8 text-primary" />,
+    icon: <MicVocal  />,
     title: 'Speaking Skills Exercise',
     description: 'Record yourself and get AI feedback on your vocal delivery.',
     component: 'SpeakingPractice',
   },
   {
-    icon: <Lightbulb className="h-8 w-8 text-primary" />,
+    icon: <Lightbulb  />,
     title: 'STAR Method Builder',
     description: 'Learn to structure your answers effectively with an interactive guide.',
     component: 'StarMethodBuilder',
@@ -85,19 +85,18 @@ const CameraActivity = ({ title, description, children }: { title: string, descr
     }, [toast]);
 
     return (
-        <DialogContent className="max-w-3xl">
-            <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">{title}</DialogTitle>
-
-                <DialogDescription>{description}</DialogDescription>
+        <DialogContent style={{ maxWidth: '42rem', borderRadius: '1rem', overflow: 'hidden', padding: 0, gap: 0, border: '1px solid hsl(var(--border))' }}>
+            <DialogHeader style={{ padding: '1.5rem', backgroundColor: 'hsl(var(--muted)/0.5)', borderBottom: '1px solid hsl(var(--border))' }}>
+                <DialogTitle style={{ fontSize: '1.5rem', fontWeight: 700 }}>{title}</DialogTitle>
+                <DialogDescription style={{ fontSize: '0.95rem', color: 'hsl(var(--muted-foreground))', marginTop: '0.5rem' }}>{description}</DialogDescription>
             </DialogHeader>
-            <div className="relative w-full aspect-video bg-secondary rounded-lg overflow-hidden">
-                <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+            <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', backgroundColor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 {!hasCameraPermission && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                        <Alert variant="destructive" className="max-w-sm">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertTitle>Camera permission is required to use this feature.</AlertTitle>
+                    <div style={{ position: 'absolute', inset: 0, padding: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Alert variant="destructive" style={{ backgroundColor: 'hsl(var(--destructive)/0.1)', borderColor: 'hsl(var(--destructive)/0.3)' }}>
+                            <AlertCircle size={18} />
+                            <AlertTitle style={{ marginLeft: '0.5rem' }}>Camera permission is required to use this feature.</AlertTitle>
                         </Alert>
                     </div>
                 )}
@@ -110,16 +109,16 @@ const CameraActivity = ({ title, description, children }: { title: string, descr
 // Posture Practice Activity
 const PosturePractice = () => (
     <CameraActivity title="Posture Practice" description="Use the guides to align your head and shoulders. Sit up straight and look directly into the camera.">
-        <div className="absolute inset-0 pointer-events-none">
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
             {/* Horizontal line for shoulders */}
-            <div className="absolute top-1/2 left-1/4 w-1/2 h-0.5 bg-primary/50 border-t-2 border-dashed border-primary-foreground"></div>
+            <div style={{ position: 'absolute', top: '70%', left: '10%', right: '10%', height: '2px', backgroundColor: 'rgba(74, 222, 128, 0.7)', border: '1px dashed rgba(255,255,255,0.5)', boxShadow: '0 0 10px rgba(74, 222, 128, 0.5)' }}></div>
             {/* Vertical line for head */}
-            <div className="absolute left-1/2 top-1/4 w-0.5 h-1/2 bg-primary/50 border-l-2 border-dashed border-primary-foreground"></div>
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center p-2 bg-black/30 rounded-md">
-                <p className="text-white text-sm">Align Head Here</p>
+            <div style={{ position: 'absolute', top: '15%', bottom: '30%', left: '50%', width: '2px', backgroundColor: 'rgba(74, 222, 128, 0.7)', border: '1px dashed rgba(255,255,255,0.5)', transform: 'translateX(-50%)', boxShadow: '0 0 10px rgba(74, 222, 128, 0.5)' }}></div>
+            <div style={{ position: 'absolute', top: '10%', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0,0,0,0.6)', padding: '0.5rem 1rem', borderRadius: '2rem', backdropFilter: 'blur(4px)' }}>
+                <p style={{ color: '#fff', fontSize: '0.875rem', fontWeight: 600, margin: 0, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Align Head Here</p>
             </div>
-             <div className="absolute top-1/2 left-1/4 -translate-y-1/2 -translate-x-1/2 text-center p-2 bg-black/30 rounded-md -rotate-90">
-                <p className="text-white text-sm">Shoulder Line</p>
+             <div style={{ position: 'absolute', top: '63%', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0,0,0,0.6)', padding: '0.5rem 1rem', borderRadius: '2rem', backdropFilter: 'blur(4px)' }}>
+                <p style={{ color: '#fff', fontSize: '0.875rem', fontWeight: 600, margin: 0, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Shoulder Line</p>
             </div>
         </div>
     </CameraActivity>
@@ -151,16 +150,23 @@ const EyeContactTraining = () => {
     return (
         <CameraActivity title="Eye Contact Training" description="Follow the blue dot with your eyes. Try to keep your head still and only move your eyes.">
             <div
-                className="absolute w-6 h-6 bg-blue-500 rounded-full transition-all duration-1000 ease-in-out shadow-lg border-2 border-white"
                 style={{
+                    position: 'absolute',
+                    width: '24px',
+                    height: '24px',
+                    backgroundColor: '#3b82f6',
+                    borderRadius: '50%',
+                    boxShadow: '0 0 15px 5px rgba(59, 130, 246, 0.6)',
                     left: `${targetPosition.x}%`,
                     top: `${targetPosition.y}%`,
                     transform: 'translate(-50%, -50%)',
+                    transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                    display: isRunning ? 'block' : 'none'
                 }}
             />
-             <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-                <Button onClick={() => setIsRunning(!isRunning)} size="lg">
-                    {isRunning ? <><Pause className="mr-2" /> Stop</> : <><Play className="mr-2"/> Start</>}
+             <div style={{ position: 'absolute', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(0,0,0,0.5)', padding: '0.5rem', borderRadius: '1rem', backdropFilter: 'blur(8px)' }}>
+                <Button onClick={() => setIsRunning(!isRunning)} size="lg" style={{ borderRadius: '2rem', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {isRunning ? <><Pause size={18} /> Stop</> : <><Play size={18} /> Start</>}
                 </Button>
             </div>
         </CameraActivity>
@@ -249,70 +255,83 @@ const SpeakingPractice = () => {
   }
 
   return (
-    <DialogContent className="max-w-2xl">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
+    <DialogContent style={{ maxWidth: '42rem', borderRadius: '1rem', padding: '1.5rem' }}>
+      <DialogHeader style={{ marginBottom: '1.5rem' }}>
+        <DialogTitle style={{ fontSize: '1.5rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'hsl(var(--primary))' }}>
             <MicVocal /> Speaking Skills Exercise
         </DialogTitle>
-        <DialogDescription>
+        <DialogDescription style={{ color: 'hsl(var(--muted-foreground))', fontSize: '1rem', marginTop: '0.5rem' }}>
           Record your answer to the question below and get instant AI feedback.
         </DialogDescription>
       </DialogHeader>
-      <ScrollArea className="h-[60vh] p-4">
-        <Card className="bg-secondary/50">
-          <CardContent className="p-4">
-              <p className="text-center font-medium">"{question}"</p>
+      <ScrollArea style={{ maxHeight: '60vh', paddingRight: '1rem' }}>
+        <Card style={{ marginBottom: '1.5rem', border: '1px solid hsl(var(--border))', backgroundColor: 'hsl(var(--muted)/0.3)' }}>
+          <CardContent style={{ padding: '1.5rem' }}>
+              <p style={{ fontSize: '1.125rem', fontWeight: 500, fontStyle: 'italic', margin: 0 }}>"{question}"</p>
           </CardContent>
         </Card>
         
-        <div className="flex justify-center items-center gap-4 my-4">
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
           {!isRecording ? (
-            <Button onClick={handleStartRecording} size="lg" disabled={isLoading}>
-              <MicVocal className="mr-2" /> Start Recording
+            <Button onClick={handleStartRecording} size="lg" disabled={isLoading} style={{ borderRadius: '0.5rem', display: 'flex', gap: '0.5rem', flex: 1 }}>
+              <MicVocal size={18} /> Start Recording
             </Button>
           ) : (
-            <Button onClick={handleStopRecording} variant="destructive" size="lg">
-              <MicVocal className="mr-2 animate-pulse" /> Stop Recording
+            <Button onClick={handleStopRecording} variant="destructive" size="lg" style={{ borderRadius: '0.5rem', display: 'flex', gap: '0.5rem', flex: 1, animation: 'pulse 2s infinite' }}>
+              <MicVocal size={18} /> Stop Recording
             </Button>
           )}
-          <Button onClick={selectNewQuestion} variant="outline" disabled={isRecording || isLoading}>
-              <RefreshCw className="mr-2 h-4 w-4" /> New Question
+          <Button onClick={selectNewQuestion} variant="outline" size="lg" disabled={isRecording || isLoading} style={{ borderRadius: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+              <RefreshCw size={18} /> New Question
           </Button>
         </div>
         
         {audioUrl && (
-            <div className="space-y-4">
-                <audio src={audioUrl} controls className="w-full" />
-                <Button onClick={handleAnalyze} className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Analyzing...' : <> <Sparkles className="mr-2"/> Analyze My Answer </>}
+            <div style={{ padding: '1.5rem', backgroundColor: 'hsl(var(--muted)/0.5)', borderRadius: '1rem', border: '1px solid hsl(var(--border))', display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                <audio src={audioUrl} controls style={{ width: '100%', height: '40px', outline: 'none' }} />
+                <Button onClick={handleAnalyze} disabled={isLoading} style={{ width: '100%', display: 'flex', gap: '0.5rem' }}>
+                    {isLoading ? 'Analyzing...' : <> <Sparkles size={18} /> Analyze My Answer </>}
                 </Button>
             </div>
         )}
 
-        {isLoading && <div className="text-center p-4">Analyzing your speech...</div>}
+        {isLoading && <div style={{ textAlign: 'center', padding: '2rem', color: 'hsl(var(--muted-foreground))' }}>Analyzing your speech... <RefreshCw size={24} style={{ animation: 'spin 2s linear infinite', display: 'inline-block', marginLeft: '0.5rem' }} /></div>}
 
         {feedback && (
-            <Card>
+            <Card style={{ backgroundColor: 'hsl(var(--primary)/0.05)', border: '1px solid hsl(var(--primary)/0.2)' }}>
                 <CardHeader>
-                    <CardTitle>AI Feedback</CardTitle>
+                    <CardTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'hsl(var(--primary))' }}><Sparkles size={18}/> AI Feedback</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <Lightbulb className="w-5 h-5 mt-1 text-primary"/>
-                      <p><strong>Clarity:</strong> {feedback.clarity}</p>
+                <CardContent style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                      <Lightbulb size={20} style={{ color: '#eab308', flexShrink: 0, marginTop: '0.25rem' }} />
+                      <div>
+                        <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Clarity:</strong> 
+                        <span style={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>{feedback.clarity}</span>
+                      </div>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <Lightbulb className="w-5 h-5 mt-1 text-primary"/>
-                      <p><strong>Pacing:</strong> {feedback.pacing}</p>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                      <RefreshCw size={20} style={{ color: '#3b82f6', flexShrink: 0, marginTop: '0.25rem' }} />
+                      <div>
+                        <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Pacing:</strong> 
+                        <span style={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>{feedback.pacing}</span>
+                      </div>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <Lightbulb className="w-5 h-5 mt-1 text-primary"/>
-                      <p><strong>Filler Words:</strong> {feedback.fillerWords}</p>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                      <AlertCircle size={20} style={{ color: '#ef4444', flexShrink: 0, marginTop: '0.25rem' }} />
+                      <div>
+                        <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Filler Words:</strong> 
+                        <span style={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>{feedback.fillerWords}</span>
+                      </div>
                     </div>
                 </CardContent>
             </Card>
         )}
       </ScrollArea>
+      <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes spin { 100% { transform: rotate(360deg); } }
+          @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+      `}} />
     </DialogContent>
   );
 };
@@ -355,63 +374,66 @@ const StarMethodBuilder = () => {
     };
 
     return (
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-            <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                    <Lightbulb /> STAR Method Builder
+        <DialogContent style={{ maxWidth: '48rem', borderRadius: '1rem', padding: 0, overflow: 'hidden' }}>
+            <DialogHeader style={{ padding: '1.5rem', backgroundColor: 'hsl(var(--muted)/0.5)', borderBottom: '1px solid hsl(var(--border))' }}>
+                <DialogTitle style={{ fontSize: '1.5rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'hsl(var(--primary))' }}>
+                    <Lightbulb size={24} /> STAR Method Builder
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription style={{ color: 'hsl(var(--muted-foreground))', fontSize: '1rem', marginTop: '0.5rem' }}>
                     Structure your accomplishments into compelling stories using the STAR method. Fill in each section and let AI help you craft the perfect narrative.
                 </DialogDescription>
             </DialogHeader>
-            <div className="grid md:grid-cols-2 gap-6 overflow-hidden flex-1">
-                <ScrollArea className="h-full pr-4">
-                  <div className="space-y-4 p-1">
-                      <div>
-                          <Label htmlFor="situation" className="text-lg font-semibold">Situation</Label>
-                          <p className="text-sm text-muted-foreground mb-2">Describe the context. Where and when did this take place?</p>
-                          <Textarea id="situation" value={situation} onChange={(e) => setSituation(e.target.value)} placeholder="e.g., At my previous job as a project manager..." className="min-h-[100px]"/>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem', padding: '1.5rem', maxHeight: '70vh' }}>
+                <ScrollArea style={{ paddingRight: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <Label htmlFor="situation" style={{ fontSize: '1rem', fontWeight: 600 }}>Situation</Label>
+                          <p style={{ fontSize: '0.875rem', color: 'hsl(var(--muted-foreground))', margin: 0 }}>Describe the context. Where and when did this take place?</p>
+                          <Textarea id="situation" value={situation} onChange={(e) => setSituation(e.target.value)} placeholder="e.g., At my previous job as a project manager..." style={{ height: '5rem', resize: 'none', borderRadius: '0.5rem' }} />
                       </div>
-                      <div>
-                          <Label htmlFor="task" className="text-lg font-semibold">Task</Label>
-                          <p className="text-sm text-muted-foreground mb-2">What was your goal or responsibility?</p>
-                          <Textarea id="task" value={task} onChange={(e) => setTask(e.target.value)} placeholder="e.g., My task was to launch a new feature..." className="min-h-[100px]"/>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <Label htmlFor="task" style={{ fontSize: '1rem', fontWeight: 600 }}>Task</Label>
+                          <p style={{ fontSize: '0.875rem', color: 'hsl(var(--muted-foreground))', margin: 0 }}>What was your goal or responsibility?</p>
+                          <Textarea id="task" value={task} onChange={(e) => setTask(e.target.value)} placeholder="e.g., My task was to launch a new feature..." style={{ height: '5rem', resize: 'none', borderRadius: '0.5rem' }} />
                       </div>
-                      <div>
-                          <Label htmlFor="action" className="text-lg font-semibold">Action</Label>
-                          <p className="text-sm text-muted-foreground mb-2">What specific steps did you take?</p>
-                          <Textarea id="action" value={action} onChange={(e) => setAction(e.target.value)} placeholder="e.g., I organized a team, created a timeline..." className="min-h-[100px]"/>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <Label htmlFor="action" style={{ fontSize: '1rem', fontWeight: 600 }}>Action</Label>
+                          <p style={{ fontSize: '0.875rem', color: 'hsl(var(--muted-foreground))', margin: 0 }}>What specific steps did you take?</p>
+                          <Textarea id="action" value={action} onChange={(e) => setAction(e.target.value)} placeholder="e.g., I organized a team, created a timeline..." style={{ height: '5rem', resize: 'none', borderRadius: '0.5rem' }} />
                       </div>
-                      <div>
-                          <Label htmlFor="result" className="text-lg font-semibold">Result</Label>
-                          <p className="text-sm text-muted-foreground mb-2">What was the outcome? Use numbers if possible.</p>
-                          <Textarea id="result" value={result} onChange={(e) => setResult(e.target.value)} placeholder="e.g., As a result, we increased user engagement by 15%..." className="min-h-[100px]"/>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <Label htmlFor="result" style={{ fontSize: '1rem', fontWeight: 600 }}>Result</Label>
+                          <p style={{ fontSize: '0.875rem', color: 'hsl(var(--muted-foreground))', margin: 0 }}>What was the outcome? Use numbers if possible.</p>
+                          <Textarea id="result" value={result} onChange={(e) => setResult(e.target.value)} placeholder="e.g., As a result, we increased user engagement by 15%..." style={{ height: '5rem', resize: 'none', borderRadius: '0.5rem' }} />
                       </div>
                   </div>
                 </ScrollArea>
-                <div className="flex flex-col gap-4 h-full">
-                    <Button onClick={handleGenerateStory} disabled={isLoading} className="w-full">
-                        <Sparkles className="mr-2" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <Button onClick={handleGenerateStory} disabled={isLoading} style={{ width: '100%', borderRadius: '0.5rem', display: 'flex', gap: '0.5rem', padding: '1.5rem', fontSize: '1.125rem' }} >
+                        <Sparkles size={20} />
                         {isLoading ? 'Crafting Story...' : 'Refine with AI'}
                     </Button>
-                    <Card className="flex-1 flex flex-col overflow-hidden">
-                        <CardHeader>
-                            <CardTitle>Your Polished Story</CardTitle>
+                    <Card style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '1px solid hsl(var(--primary)/0.2)', backgroundColor: 'hsl(var(--primary)/0.02)' }}>
+                        <CardHeader style={{ padding: '1rem', borderBottom: '1px solid hsl(var(--border))' }}>
+                            <CardTitle style={{ fontSize: '1.125rem', color: 'hsl(var(--primary))' }}>Your Polished Story</CardTitle>
                         </CardHeader>
-                        <CardContent className="flex-1 overflow-y-auto">
-                            <ScrollArea className="h-full pr-2">
+                        <CardContent style={{ padding: '1rem', flex: 1, overflow: 'hidden' }}>
+                            <ScrollArea style={{ height: '100%' }}>
                               {isLoading ? (
-                                  <p className="text-muted-foreground animate-pulse">Generating your story...</p>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'hsl(var(--muted-foreground))' }}>
+                                    <RefreshCw size={16} style={{ animation: 'spin 2s linear infinite' }} /> Generating your story...
+                                  </div>
                               ) : generatedStory ? (
-                                  <p className="text-sm whitespace-pre-wrap">{generatedStory}</p>
+                                  <p style={{ fontSize: '0.95rem', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{generatedStory}</p>
                               ) : (
-                                  <p className="text-muted-foreground">Your refined story will appear here.</p>
+                                  <p style={{ color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', margin: 0 }}>Your refined story will appear here once generated.</p>
                               )}
                             </ScrollArea>
                         </CardContent>
                     </Card>
                 </div>
             </div>
+            {isLoading && <style dangerouslySetInnerHTML={{ __html: '@keyframes spin { 100% { transform: rotate(360deg); } }' }} />}
         </DialogContent>
     );
 };
@@ -440,40 +462,44 @@ export default function ImprovePage() {
   const ActivityComponent = activeActivity ? activityComponents[activeActivity] : null;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="bg-background/80 backdrop-blur-sm sticky top-0 z-40 border-b">
-        <div className="max-w-5xl mx-auto p-4 flex items-center justify-between">
-          <Button asChild variant="outline">
-        <Link href="/">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Home
-        </Link>
+    <div style={{ minHeight: '100vh', backgroundColor: 'hsl(var(--background))', color: 'hsl(var(--foreground))', fontFamily: 'system-ui, sans-serif' }}>
+      <header style={{ position: 'sticky', top: 0, zIndex: 40, borderBottom: '1px solid hsl(var(--border))', backgroundColor: 'hsl(var(--card) / 0.85)', backdropFilter: 'blur(12px)', padding: '1rem', display: 'flex', alignItems: 'center' }}>
+        <div style={{ maxWidth: '80rem', margin: '0 auto', display: 'flex', alignItems: 'center', width: '100%', gap: '1rem' }}>
+          <Button asChild variant="outline" style={{ borderRadius: '0.5rem' }}>
+            <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
+              <ArrowLeft size={16} />
+              Back to Home
+            </Link>
           </Button>
-          <h1 className="text-2xl font-bold text-primary">Improve Yourself</h1>
-          <div />
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>Improve Yourself</h1>
         </div>
       </header>
       
-      <main className="max-w-5xl mx-auto p-4 md:p-8">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold tracking-tight">Interactive Improvement Toolkit</h2>
-          <p className="mt-2 text-lg text-muted-foreground">
+      <main style={{ maxWidth: '80rem', margin: '0 auto', padding: '3rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+        <div style={{ textAlign: 'center', maxWidth: '48rem', margin: '0 auto' }}>
+          <h2 style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 800, color: 'hsl(var(--primary))', letterSpacing: '-0.03em', marginBottom: '1rem' }}>Interactive Improvement Toolkit</h2>
+          <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '1.125rem', lineHeight: 1.6 }}>
             Actively practice and enhance your interview skills with these AI-powered exercises.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
           {improvementAreas.map((area, index) => (
-            <Card key={index} className="bg-card border border-border hover:shadow-lg transition-all duration-200 flex flex-col">
-              <CardHeader className="flex flex-row items-center gap-4">
-                  {area.icon}
+            <Card key={index} style={{ display: 'flex', flexDirection: 'column', borderRadius: '1rem', border: '1px solid hsl(var(--border))', backgroundColor: 'hsl(var(--card))', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', transition: 'transform 0.2s', overflow: 'hidden' }}
+              onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
+              onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <CardHeader style={{ padding: '1.5rem', paddingBottom: '1rem' }}>
+                  <div style={{ background: 'hsla(var(--primary), 0.1)', color: 'hsl(var(--primary))', padding: '1rem', borderRadius: '50%', display: 'inline-flex', marginBottom: '1rem', alignSelf: 'flex-start' }}>
+                    {area.icon}
+                  </div>
                   <div>
-                    <CardTitle className="text-primary">{area.title}</CardTitle>
-                    <CardDescription className="text-muted-foreground">{area.description}</CardDescription>
+                    <CardTitle style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>{area.title}</CardTitle>
+                    <CardDescription style={{ fontSize: '0.95rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>{area.description}</CardDescription>
                   </div>
               </CardHeader>
-              <CardContent className="mt-auto flex">
-                <Button className="bg-primary text-primary-foreground hover:bg-primary/80 transition-all duration-200" onClick={() => openActivity(area.component)}>
+              <CardContent style={{ padding: '1.5rem', paddingTop: 0, marginTop: 'auto' }}>
+                <Button onClick={() => openActivity(area.component)} style={{ width: '100%', borderRadius: '0.5rem', fontWeight: 600 }}>
                   Start Exercise
                 </Button>
               </CardContent>

@@ -109,86 +109,86 @@ function UploadPage() {
   };
   
   return (
-    <main ref={container} className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 lg:p-8">
-      <div className="absolute top-4 left-4 animate-in">
-          <Button asChild variant="outline" className="bg-card/80 backdrop-blur-sm">
-              <Link href="/">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
+    <main ref={container} style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'hsl(var(--background))', padding: '2rem', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: '1rem', left: '1rem' }}>
+          <Button asChild variant="outline">
+              <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
+                  <ArrowLeft size={16} />
                   Back to Home
               </Link>
           </Button>
       </div>
-      <div className="w-full max-w-2xl">
-        <div className="text-center mb-8 animate-in">
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-primary">
+      <div style={{ width: '100%', maxWidth: '800px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+            <h1 style={{ fontSize: '3rem', fontWeight: 800, color: 'hsl(var(--primary))', letterSpacing: '-0.05em', marginBottom: '1rem' }}>
                 Upload & Analyze
             </h1>
-            <p className="mt-4 text-lg text-muted-foreground animate-in">
+            <p style={{ fontSize: '1.125rem', color: 'hsl(var(--muted-foreground))' }}>
                 Provide your interview recording to get instant, AI-powered feedback.
             </p>
         </div>
 
-        <Card className="shadow-2xl animate-in bg-card/80 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <Bot className="h-8 w-8 text-primary" />
+        <Card style={{ padding: '2rem', borderRadius: '1rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+          <CardHeader style={{ textAlign: 'center', paddingBottom: '2rem' }}>
+            <CardTitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', fontSize: '1.5rem', color: 'hsl(var(--foreground))' }}>
+              <Bot size={28} style={{ color: 'hsl(var(--primary))' }} />
               Analyze Your Interview
             </CardTitle>
-            <CardDescription>
+            <CardDescription style={{ fontSize: '0.95rem', color: 'hsl(var(--muted-foreground))', marginTop: '0.5rem' }}>
               Your data is processed securely and is not stored on our servers. Max file size: 100MB.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {status === 'processing' ? (
-                <div className="flex flex-col items-center justify-center space-y-4 p-8">
-                    <p className="text-primary font-medium">{progressMessage}</p>
-                    <Progress value={progress} className="w-full" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', padding: '2rem 0' }}>
+                    <p style={{ fontSize: '1.125rem', fontWeight: 500, color: 'hsl(var(--foreground))' }}>{progressMessage}</p>
+                    <Progress value={progress} style={{ height: '0.75rem', width: '100%' }} />
                 </div>
             ) : (
                 <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                   <FormField
                     control={form.control}
                     name="video"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Interview Video</FormLabel>
+                      <FormItem style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <FormLabel style={{ fontWeight: 600 }}>Interview Video</FormLabel>
                         <FormControl>
-                          <div className="relative flex items-center justify-center w-full">
-                            <label htmlFor="video-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-secondary/20 hover:bg-secondary/40 transition-colors">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <div style={{ position: 'relative' }}>
+                            <label htmlFor="video-upload" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '16rem', border: '2px dashed hsl(var(--border))', borderRadius: '0.75rem', backgroundColor: 'hsl(var(--muted))', cursor: 'pointer', transition: 'border-color 0.2s ease' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', textAlign: 'center', padding: '2rem' }}>
                                     {uploadedFileName ? (
                                         <>
-                                            <FileVideo className="w-8 h-8 mb-3 text-primary" />
-                                            <p className="font-semibold text-primary">{uploadedFileName}</p>
-                                            <p className="text-xs text-muted-foreground">Click to choose a different file</p>
+                                            <FileVideo size={48} style={{ color: 'hsl(var(--primary))', marginBottom: '1rem' }} />
+                                            <p style={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>{uploadedFileName}</p>
+                                            <p style={{ fontSize: '0.875rem', color: 'hsl(var(--muted-foreground))' }}>Click to choose a different file</p>
                                         </>
                                     ) : (
                                         <>
-                                            <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
-                                            <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                                            <p className="text-xs text-muted-foreground">MP4, WebM, etc. (Max 100MB)</p>
+                                            <UploadCloud size={48} style={{ color: 'hsl(var(--muted-foreground))', marginBottom: '1rem' }} />
+                                            <p style={{ fontSize: '1.125rem', color: 'hsl(var(--foreground))' }}><span style={{ color: 'hsl(var(--primary))', fontWeight: 600 }}>Click to upload</span> or drag and drop</p>
+                                            <p style={{ fontSize: '0.875rem', color: 'hsl(var(--muted-foreground))' }}>MP4, WebM, etc. (Max 100MB)</p>
                                         </>
                                     )}
                                 </div>
                                 <Input 
                                   id="video-upload" 
                                   type="file" 
-                                  className="hidden" 
+                                  style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', borderWidth: 0 }}
                                   accept="video/*"
-                                  onChange={(e) => field.onChange(e.target.files)}
+                                  onChange={(e: any) => field.onChange(e.target.files)}
                                 />
                             </label>
                           </div>
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage style={{ color: 'hsl(var(--destructive))' }} />
                       </FormItem>
                     )}
                   />
                   
-                  <Button type="submit" className="w-full" size="lg" disabled={status === 'processing'}>
+                  <Button type="submit" size="lg" disabled={form.formState.isSubmitting} style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem', fontSize: '1.125rem' }}>
                     Analyze Now
-                    <ArrowRight className="ml-2 h-5 w-5" />
+                    <ArrowRight size={20} style={{ marginLeft: '0.75rem' }} />
                   </Button>
                 </form>
               </Form>

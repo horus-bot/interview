@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, prompt, model = 'meta-llama/llama-4-scout-17b-16e-instruct', maxTokens = 2000 } = await request.json();
+    const { text, prompt, model = 'llama-3.3-70b-versatile', maxTokens = 2000 } = await request.json();
 
     const messages = [
       {

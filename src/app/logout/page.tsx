@@ -2,18 +2,18 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/auth-context';
 
 export default function LogoutPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { signOut } = useAuth();
 
   useEffect(() => {
     const performSignOut = async () => {
       try {
-        await signOut(auth);
+        signOut();
         toast({
           title: 'Logged Out',
           description: 'You have been successfully logged out.',
@@ -34,8 +34,8 @@ export default function LogoutPage() {
   }, [router, toast]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <p>Logging you out...</p>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'hsl(var(--background))' }}>
+      <p style={{ fontSize: '1.25rem', color: 'hsl(var(--muted-foreground))', animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}>Logging you out...</p>
     </div>
   );
 }

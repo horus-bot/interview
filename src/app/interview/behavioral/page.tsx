@@ -211,7 +211,7 @@ function BehavioralInterviewPage() {
         }, Math.max(interviewQuestions[currentQuestionIndex].length * 80, 3000));
         
         const checkSpeechEnd = () => {
-          if (window.responsiveVoice && window.responsiveVoice.isPlaying()) {
+          if (window.speechSynthesis && window.speechSynthesis.speaking) {
             setTimeout(checkSpeechEnd, 500);
           } else {
             clearTimeout(speechTimeout);
@@ -296,32 +296,32 @@ function BehavioralInterviewPage() {
     switch (interviewState) {
         case 'not_started':
             return (
-                <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                    <Bot className="h-16 w-16 text-primary mb-4"/>
-                    <h2 className="text-2xl font-bold">Ready for your Behavioral Interview?</h2>
-                    <p className="text-muted-foreground mt-2 mb-4">You'll be asked {interviewQuestions.length} common behavioral questions.</p>
+                <div >
+                    <Bot />
+                    <h2 >Ready for your Behavioral Interview?</h2>
+                    <p >You'll be asked {interviewQuestions.length} common behavioral questions.</p>
                     
                     {/* Recording Warning */}
-                    <Alert className="mb-4 border-amber-500 bg-amber-50 text-amber-800">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle className="text-amber-800">Recording Notice</AlertTitle>
-                        <AlertDescription className="text-amber-700">
+                    <Alert >
+                        <AlertTriangle  />
+                        <AlertTitle >Recording Notice</AlertTitle>
+                        <AlertDescription >
                             <strong>You are being recorded and will be judged on your performance.</strong><br />
                             Please behave professionally as this interview will be analyzed by AI.
                         </AlertDescription>
                     </Alert>
 
-                    <div className="flex items-center gap-2 mb-6">
+                    <div >
                         <Button
                             variant={audioEnabled ? "default" : "outline"}
                             size="sm"
                             onClick={toggleAudio}
-                            className="flex items-center gap-2"
+                            
                         >
-                            {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                            {audioEnabled ? <Volume2  /> : <VolumeX  />}
                             {audioEnabled ? 'AI Voice ON' : 'AI Voice OFF'}
                         </Button>
-                        <span className="text-xs text-muted-foreground">
+                        <span >
                             {ttsReady ? '(Audio ready)' : '(Loading audio...)'}
                         </span>
                     </div>
@@ -334,30 +334,30 @@ function BehavioralInterviewPage() {
         case 'in_progress':
              if (isConnecting) {
                 return (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                        <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
-                        <h2 className="text-2xl font-bold">AI is joining the interview...</h2>
-                        {audioEnabled && <p className="text-sm text-muted-foreground mt-2">Listen for the question...</p>}
+                    <div >
+                        <Loader2  />
+                        <h2 >AI is joining the interview...</h2>
+                        {audioEnabled && <p >Listen for the question...</p>}
                     </div>
                 );
             }
             return (
-                 <div className="flex flex-col items-center justify-center h-full text-center p-4 bg-black/30 rounded-lg">
-                    <p className="text-lg text-muted-foreground">Question {currentQuestionIndex + 1} of {interviewQuestions.length}</p>
-                    <div className="flex items-center gap-4 my-4">
-                        {isAISpeaking && <Volume2 className="h-8 w-8 animate-pulse text-primary" />}
-                        <h2 className="text-3xl font-bold">"{interviewQuestions[currentQuestionIndex]}"</h2>
+                 <div >
+                    <p >Question {currentQuestionIndex + 1} of {interviewQuestions.length}</p>
+                    <div >
+                        {isAISpeaking && <Volume2  />}
+                        <h2 >"{interviewQuestions[currentQuestionIndex]}"</h2>
                     </div>
                     
-                    <div className="flex gap-2 mt-4 mb-4">
+                    <div >
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={playQuestionAudio}
                             disabled={isAISpeaking || !ttsReady}
-                            className="flex items-center gap-2"
+                            
                         >
-                            <Volume2 className="h-4 w-4" />
+                            <Volume2  />
                             {isAISpeaking ? 'Playing...' : 'Listen to Question'}
                         </Button>
                         
@@ -365,34 +365,34 @@ function BehavioralInterviewPage() {
                             variant={audioEnabled ? "default" : "outline"}
                             size="sm"
                             onClick={toggleAudio}
-                            className="flex items-center gap-2"
+                            
                         >
-                            {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                            {audioEnabled ? <Volume2  /> : <VolumeX  />}
                             {audioEnabled ? 'Voice ON' : 'Voice OFF'}
                         </Button>
                     </div>
 
-                    <div className="mt-4 bg-primary/20 text-primary-foreground p-3 rounded-lg flex items-center gap-2">
-                        <Info className="h-5 w-5" />
-                        <p className="font-medium text-sm">
+                    <div >
+                        <Info  />
+                        <p >
                             {isAISpeaking ? "AI is speaking the question..." : "Answer the question thoroughly, then click Next."}
                         </p>
                     </div>
                     
-                    <Button onClick={handleNextQuestion} size="lg" className="mt-6" disabled={isAISpeaking}>
+                    <Button onClick={handleNextQuestion} size="lg"  disabled={isAISpeaking}>
                         {currentQuestionIndex < interviewQuestions.length - 1 ? (
-                            <>Next Question <Send className="ml-2"/></>
+                            <>Next Question <Send /></>
                         ) : (
-                            <>Finish & Analyze <Send className="ml-2"/></>
+                            <>Finish & Analyze <Send /></>
                         )}
                     </Button>
                 </div>
             );
         case 'finished':
              return (
-                <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                    <h2 className="text-2xl font-bold">Interview Finished!</h2>
-                    <p className="text-muted-foreground mt-2 mb-6">Something went wrong during processing. Would you like to retry?</p>
+                <div >
+                    <h2 >Interview Finished!</h2>
+                    <p >Something went wrong during processing. Would you like to retry?</p>
                     <Button onClick={() => window.location.reload()} size="lg">
                         Restart Interview
                     </Button>
@@ -400,28 +400,28 @@ function BehavioralInterviewPage() {
             );
         case 'processing':
             return (
-                <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                    <h2 className="text-2xl font-bold mb-4">{processingState.message}</h2>
-                    <Progress value={processingState.progress} className="w-full max-w-md"/>
+                <div >
+                    <h2 >{processingState.message}</h2>
+                    <Progress value={processingState.progress} />
                 </div>
             )
     }
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-white">
-      <header className="p-4 flex justify-between items-center border-b border-gray-700">
-        <Button asChild variant="outline" className="bg-transparent hover:bg-gray-800 border-gray-700">
+    <div >
+      <header >
+        <Button asChild variant="outline" >
           <Link href="/interview">
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft  />
             Back to Interview Types
           </Link>
         </Button>
-        <div className="text-lg font-semibold flex items-center gap-2">
-          <Bot className="h-5 w-5" />
+        <div >
+          <Bot  />
           Behavioral Mock Interview
           {interviewState === 'in_progress' && (
-            <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">
+            <span >
               RECORDING
             </span>
           )}
@@ -429,74 +429,74 @@ function BehavioralInterviewPage() {
         <div />
       </header>
 
-      <main className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-        <div className="relative bg-gray-800 rounded-lg overflow-hidden flex items-center justify-center">
+      <main >
+        <div >
             {renderContent()}
         </div>
 
-        <div className="relative bg-gray-800 rounded-lg overflow-hidden flex items-center justify-center">
+        <div >
             {hasPermission ? (
               <>
-                <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                <video ref={videoRef}  autoPlay muted playsInline />
                 {audioUrl && <audio ref={audioRef} src={audioUrl} autoPlay onEnded={() => setAudioUrl(null)}/>}
                 
-                <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded-lg">
-                    <p className="font-semibold">You</p>
+                <div >
+                    <p >You</p>
                 </div>
                 
                 {interviewState === 'in_progress' && !isConnecting && (
-                    <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
-                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                    <div >
+                        <div ></div>
                         REC
                     </div>
                 )}
                 
                 {interviewState === 'in_progress' && (
-                    <div className="absolute top-4 left-4 bg-red-600/90 text-white px-3 py-2 rounded-lg">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                            <AlertTriangle className="h-4 w-4" />
+                    <div >
+                        <div >
+                            <AlertTriangle  />
                             Being Analyzed
                         </div>
-                        <p className="text-xs mt-1">AI is judging your performance</p>
+                        <p >AI is judging your performance</p>
                     </div>
                 )}
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-                <Camera className="h-16 w-16 text-gray-400 mb-4" />
-                <p className="text-gray-400">Camera will appear here once permissions are granted</p>
+              <div >
+                <Camera  />
+                <p >Camera will appear here once permissions are granted</p>
               </div>
             )}
         </div>
       </main>
 
-      <footer className="p-4 flex justify-center items-center space-x-4 bg-gray-900/80 border-t border-gray-700">
+      <footer >
         <Button
           variant={isMicOn ? 'secondary' : 'destructive'}
           size="icon"
-          className="rounded-full w-14 h-14"
+          
           onClick={toggleMic}
           disabled={!hasPermission || interviewState !== 'in_progress'}
         >
-          {isMicOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
+          {isMicOn ? <Mic  /> : <MicOff  />}
         </Button>
         <Button
           variant={isCameraOn ? 'secondary' : 'destructive'}
           size="icon"
-          className="rounded-full w-14 h-14"
+          
           onClick={toggleCamera}
           disabled={!hasPermission || interviewState !== 'in_progress'}
         >
-          {isCameraOn ? <Video className="h-6 w-6" /> : <VideoOff className="h-6 w-6" />}
+          {isCameraOn ? <Video  /> : <VideoOff  />}
         </Button>
         <Button 
             onClick={handleStopInterview}
             variant="destructive"
             size="icon"
-            className="rounded-full w-16 h-14"
+            
             disabled={interviewState !== 'in_progress' || isConnecting}
         >
-            <PhoneOff className="h-6 w-6" />
+            <PhoneOff  />
         </Button>
       </footer>
     </div>

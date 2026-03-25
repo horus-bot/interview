@@ -11,9 +11,11 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const ReasoningAnalysisInputSchema = z.object({
   videoDataUri: z
@@ -51,136 +53,39 @@ const ReasoningAnalysisOutputSchema = z.object({
 });
 export type ReasoningAnalysisOutput = z.infer<typeof ReasoningAnalysisOutputSchema>;
 
-// Video compression function for upload analysis
-async function compressVideoForAnalysis(videoDataUri: string): Promise<string> {
-  try {
-    // Convert data URI to blob
-    const response = await fetch(videoDataUri);
-    const originalBlob = await response.blob();
-    
-    console.log(`Original video size: ${(originalBlob.size / 1024 / 1024).toFixed(2)} MB`);
-    
-    // If video is already small enough, return as-is
-    const maxSize = 8 * 1024 * 1024; // 8MB limit for upload analysis
-    if (originalBlob.size <= maxSize) {
-      return videoDataUri.split(',')[1];
-    }
-
-    // Create video element for processing
-    const video = document.createElement('video');
-    video.src = URL.createObjectURL(originalBlob);
-    video.muted = true;
-    
-    return new Promise((resolve, reject) => {
-      video.onloadedmetadata = async () => {
-        try {
-          // Create canvas for compression
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d')!;
-          
-          // Set compressed dimensions
-          const maxWidth = 480;  // Lower resolution for upload analysis
-          const maxHeight = 360;
-          
-          const aspectRatio = video.videoWidth / video.videoHeight;
-          
-          if (video.videoWidth > video.videoHeight) {
-            canvas.width = Math.min(maxWidth, video.videoWidth);
-            canvas.height = canvas.width / aspectRatio;
-          } else {
-            canvas.height = Math.min(maxHeight, video.videoHeight);
-            canvas.width = canvas.height * aspectRatio;
-          }
-          
-          // Create compressed stream
-          const stream = canvas.captureStream(10); // 10 FPS for upload analysis
-          
-          const mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'video/mp4; codecs="avc1.42E01E"', // H.264 for compression
-            videoBitsPerSecond: 300000,  // 300kbps for upload analysis
-          });
-          
-          const chunks: Blob[] = [];
-          
-          mediaRecorder.ondataavailable = (event) => {
-            chunks.push(event.data);
-          };
-          
-          mediaRecorder.onstop = async () => {
-            const compressedBlob = new Blob(chunks, { type: 'video/mp4' });
-            console.log(`Compressed video size: ${(compressedBlob.size / 1024 / 1024).toFixed(2)} MB`);
-            
-            // Convert to base64
-            const reader = new FileReader();
-            reader.readAsDataURL(compressedBlob);
-            reader.onloadend = () => {
-              const base64Data = (reader.result as string).split(',')[1];
-              resolve(base64Data);
-            };
-          };
-          
-          // Start recording
-          mediaRecorder.start();
-          video.play();
-          
-          // Draw frames to canvas
-          const drawFrame = () => {
-            if (!video.paused && !video.ended) {
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              requestAnimationFrame(drawFrame);
-            } else {
-              mediaRecorder.stop();
-            }
-          };
-          
-          drawFrame();
-          
-          // Auto-stop after 3 minutes for upload analysis
-          setTimeout(() => {
-            if (mediaRecorder.state === 'recording') {
-              mediaRecorder.stop();
-              video.pause();
-            }
-          }, 180000); // 3 minutes max
-          
-        } catch (error) {
-          reject(error);
-        }
-      };
-      
-      video.onerror = reject;
-    });
-    
-  } catch (error) {
-    console.error('Video compression failed:', error);
-    // Fallback: truncate if too large
-    const response = await fetch(videoDataUri);
-    const originalBlob = await response.blob();
-    
-    if (originalBlob.size > 8 * 1024 * 1024) { // 8MB limit
-      const truncatedBlob = originalBlob.slice(0, 4 * 1024 * 1024); // Keep first 4MB
-      const reader = new FileReader();
-      reader.readAsDataURL(truncatedBlob);
-      
-      return new Promise((resolve) => {
-        reader.onloadend = () => {
-          const base64Data = (reader.result as string).split(',')[1];
-          resolve(base64Data);
-        };
-      });
-    }
-    
-    return videoDataUri.split(',')[1];
+function extractJsonBlock(content: string): string {
+  const match = content.match(/\{[\s\S]*\}/);
+  if (!match) {
+    throw new Error('No JSON object found in model response.');
   }
+
+  return match[0];
+}
+
+function parseDataUri(videoDataUri: string): { mimeType: string; data: string } {
+  const match = videoDataUri.match(/^data:(.+?);base64,(.+)$/);
+  if (!match) {
+    throw new Error('Invalid video data URI format.');
+  }
+
+  return {
+    mimeType: match[1],
+    data: match[2],
+  };
 }
 
 export async function reasoningAnalysis(input: ReasoningAnalysisInput): Promise<ReasoningAnalysisOutput> {
   try {
-    // Use Gemini 1.5 Flash for cost efficiency
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('Missing GEMINI_API_KEY environment variable.');
+    }
 
-    // Compress video before sending to Gemini
-    const compressedVideoData = await compressVideoForAnalysis(input.videoDataUri);
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('Missing GROQ_API_KEY environment variable.');
+    }
+
+    const { mimeType, data } = parseDataUri(input.videoDataUri);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     const analysisPrompt = `You are an expert interview coach providing a detailed analysis of a mock interview video.
 
@@ -235,60 +140,68 @@ Format your response as a JSON object:
 
 Provide specific, actionable feedback based on the video analysis.`;
 
-    const result = await model.generateContent([
+    const geminiResult = await model.generateContent([
       {
         text: analysisPrompt
       },
       {
         inlineData: {
-          mimeType: "video/mp4",
-          data: compressedVideoData
+          mimeType,
+          data,
         }
       }
     ]);
 
-    const response = result.response.text();
-    
-    // Extract JSON from the response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Invalid response format from Gemini');
+    const geminiText = geminiResult.response.text();
+
+    const groqCompletion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.2,
+      max_tokens: 2500,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a strict JSON formatter. Return only valid JSON that exactly follows the requested schema.',
+        },
+        {
+          role: 'user',
+          content: `Normalize the following interview analysis into this exact JSON schema with all fields required:\n\n{
+  "transcript": "string",
+  "interviewSummary": "string",
+  "videoAnalysis": {
+    "posture": "string",
+    "bodyLanguage": "string",
+    "eyeContact": "string"
+  },
+  "vocalAnalysis": {
+    "clarity": "string",
+    "pacing": "string",
+    "fillerWordCount": 0,
+    "unprofessionalWordCount": 0
+  },
+  "contentAnalysis": {
+    "answerClarity": "string",
+    "relevance": "string",
+    "improvementSuggestions": "string"
+  },
+  "guidance": ["string"]
+}\n\nAnalysis text:\n${geminiText}`,
+        },
+      ],
+    });
+
+    const groqText = groqCompletion.choices[0]?.message?.content;
+    if (!groqText) {
+      throw new Error('No response from Groq formatter step.');
     }
 
-    const parsedResponse = JSON.parse(jsonMatch[0]);
+    const normalizedJson = extractJsonBlock(groqText);
+    const parsedResponse = JSON.parse(normalizedJson);
     return ReasoningAnalysisOutputSchema.parse(parsedResponse);
     
   } catch (error) {
-    console.error('Error analyzing video with Gemini Flash:', error);
-    
-    // Enhanced fallback analysis
-    return {
-      transcript: "Video analysis completed using fallback method. Full transcript analysis unavailable.",
-      interviewSummary: "Interview analysis performed with fallback system. Recommend re-uploading video for full AI analysis.",
-      videoAnalysis: {
-        posture: "Video quality assessment completed. Recommend maintaining upright posture and engaged body language during interviews.",
-        bodyLanguage: "General body language assessment completed. Focus on confident gestures and minimal fidgeting.",
-        eyeContact: "Camera engagement assessment completed. Maintain steady eye contact with the camera/interviewer."
-      },
-      vocalAnalysis: {
-        clarity: "Audio analysis completed with basic assessment. Focus on clear articulation and proper pronunciation.",
-        pacing: "Speaking pace assessment completed. Aim for moderate, well-paced delivery with natural pauses.",
-        fillerWordCount: 8,
-        unprofessionalWordCount: 2
-      },
-      contentAnalysis: {
-        answerClarity: "Answer structure analysis completed. Recommend using frameworks like STAR method for structured responses.",
-        relevance: "Content relevance assessment completed. Ensure answers directly address the questions asked.",
-        improvementSuggestions: "Focus on providing specific examples, quantifying achievements, and maintaining professional language throughout responses."
-      },
-      guidance: [
-        "Practice structured answering techniques like the STAR method",
-        "Work on maintaining confident body language and posture",
-        "Focus on clear articulation and reducing filler words",
-        "Prepare specific examples that demonstrate your skills and achievements",
-        "Practice maintaining eye contact with the camera during virtual interviews"
-      ]
-    };
+    console.error('Error analyzing video with Gemini/Groq pipeline:', error);
+    throw new Error('Gemini/Groq interview analysis failed. Please verify API keys and retry with a shorter video if needed.');
   }
 }
 

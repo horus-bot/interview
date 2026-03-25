@@ -17,8 +17,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="font-sans antialiased">
+    <html lang="en" >
+      <body style={{ fontFamily: 'var(--font-sans)', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', margin: 0, padding: 0 }}>
         <AuthProvider>
             {children}
             <Toaster />

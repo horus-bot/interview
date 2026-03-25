@@ -42,7 +42,7 @@ Our platform doesn't just record and playback - it **intelligently analyzes** ev
 ┌─────────────────────────────────────────────────────────────┐
 │                    Data & Authentication                     │
 ├─────────────────────────────────────────────────────────────┤
-│           Firebase (Auth, Storage, Analytics)               │
+│      Local session auth + browser storage for analyses      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -70,8 +70,8 @@ Our platform doesn't just record and playback - it **intelligently analyzes** ev
 - **Styling:** Tailwind CSS, Shadcn/ui Components
 - **AI Integration:** Groq SDK, Google AI SDK
 - **Media Processing:** WebRTC, MediaRecorder API
-- **Authentication:** Firebase Auth
-- **Database:** Firebase Firestore
+- **Authentication:** Local session auth (client-side)
+- **Data Storage:** Browser storage for session analysis state
 - **Deployment:** Vercel/Firebase Hosting
 - **State Management:** React Hooks, Context API
 
@@ -159,34 +159,17 @@ Create a `.env.local` file in the root directory:
 
 ```bash
 # =============================
-# 🔥 Firebase Configuration 🔥
-# =============================
-NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
-
-# =============================
 # 🤖 AI API Keys 🤖
 # =============================
 GEMINI_API_KEY=your_gemini_api_key
 GROQ_API_KEY=your_groq_api_key
 ```
 
-### **3. Firebase Setup**
-1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
-2. Enable Authentication (Email/Password)
-3. Create Firestore database
-4. Copy configuration to `.env.local`
-
-### **4. AI API Setup**
+### **3. AI API Setup**
 1. **Groq API:** Get key from [Groq Console](https://console.groq.com/)
 2. **Gemini API:** Get key from [Google AI Studio](https://aistudio.google.com/app/apikey)
 
-### **5. Run Development Server**
+### **4. Run Development Server**
 ```bash
 # Start the development server
 npm run dev
@@ -195,7 +178,7 @@ npm run dev
 # http://localhost:3000
 ```
 
-### **6. Production Build**
+### **5. Production Build**
 ```bash
 # Build for production
 npm run build
@@ -274,7 +257,7 @@ const questions = await groq.chat.completions.create({
 ## 🚦 Usage Guide
 
 ### **Getting Started**
-1. **Sign Up/Login** using email authentication
+1. **Sign Up/Login** using local session authentication
 2. **Choose Interview Type** (Behavioral, Technical, etc.)
 3. **Configure Settings** (role, experience level, duration)
 4. **Grant Permissions** for camera and microphone access
@@ -295,7 +278,7 @@ const questions = await groq.chat.completions.create({
 - All video processing happens **locally** during recording
 - **No permanent storage** of video data
 - **Secure API communication** with encryption
-- **Firebase security rules** protect user data
+- Local session data remains on the client and should not be used for sensitive production auth flows
 
 ### **🚫 Contribution Policy**
 This repository is an **official competition submission** and is **not accepting pull requests** or external contributions at this time. 
