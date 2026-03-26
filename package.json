@@ -4,12 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --experimental-https",
-    "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
-    "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
+    "genkit:dev": "genkit start -- node src/ai/dev.js",
+    "genkit:watch": "genkit start -- node --watch src/ai/dev.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "lint": "next lint"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.28.0",
@@ -53,10 +52,14 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.2",
     "recharts": "^2.15.1",
+    "tw-to-css": "^0.0.12",
     "wav": "^1.0.2",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/plugin-syntax-jsx": "^7.28.6",
+    "@babel/preset-typescript": "^7.28.5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
