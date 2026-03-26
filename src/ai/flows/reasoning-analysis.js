@@ -39,17 +39,29 @@ const ReasoningAnalysisOutputSchema = z.object({
     eyeContact: z.string().describe("Feedback on the quality and consistency of eye contact with the camera/interviewer.")
   }),
   vocalAnalysis: z.object({
-    clarity: z.string().describe("Feedback on the clarity and articulation of the interviewee's speech."),
-    pacing: z.string().describe("Analysis of the speech pace, noting if it was too fast, too slow, or varied appropriately."),
-    fillerWordCount: z.number().describe("The total count of identified filler words (e.g., 'um', 'ah', 'like')."),
-    unprofessionalWordCount: z.number().describe("Count of any words or phrases deemed unprofessional or overly casual.")
+    clarity: z.string(),
+    pacing: z.string(),
+    fillerWordCount: z.number(),
+    unprofessionalWordCount: z.number(),
+    fluency: z.string(),
+    grammar: z.string(),
+    structure: z.string(),
+    wordsPerMinute: z.number().describe("Estimated words per minute spoken by the interviewee.")
   }),
+  videoAnalysis: z.object({
+    posture: z.string(),
+    bodyLanguage: z.string(),
+    eyeContact: z.string(),
+    sentimentScore: z.number().describe("Overall sentiment score from 0-100 based on facial expressions."),
+    confidenceScore: z.number().describe("Aggregated confidence score from 0-100.")
+  }),
+  performanceTimeline: z.array(z.number()).describe("A series of 10-12 score points (0-100) representing performance quality across the interview duration for graphing."),
   contentAnalysis: z.object({
-    answerClarity: z.string().describe("Feedback on the clarity, structure (e.g., STAR method), and conciseness of the interviewee's answers."),
-    relevance: z.string().describe("Analysis of how relevant and on-topic the answers were to the questions asked."),
-    improvementSuggestions: z.string().describe("Specific examples and suggestions on how the interviewee could have formulated better, more impactful answers.")
+    answerClarity: z.string(),
+    relevance: z.string(),
+    improvementSuggestions: z.string()
   }),
-  guidance: z.array(z.string()).describe("A list of 3-5 actionable, prioritized recommendations for improvement based on the overall analysis.")
+  guidance: z.array(z.string())
 });
 
 
@@ -156,38 +168,70 @@ Provide specific, actionable feedback based on the video analysis.`;
 
     const groqCompletion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
-      temperature: 0.2,
-      max_tokens: 2500,
+      temperature: 0.1,
+      max_tokens: 3000,
       messages: [
       {
         role: 'system',
-        content: 'You are a strict JSON formatter. Return only valid JSON that exactly follows the requested schema.'
+        content: `You are an expert Interview Performance Analyst. Your task is to extract data from the provided Gemini analysis and, MOST IMPORTANTLY, perform your own deep linguistic and performance analysis.
+        
+        CRITICAL TASK:
+        1. Read the "transcript" provided in the Gemini text. 
+        2. Analyze for:
+           - Fluency: Smoothness of thought delivery.
+           - Grammar: Grammatical accuracy.
+           - Structure: Logical framing of answers.
+           - wordsPerMinute: Estimate based on transcript length vs estimated time (avg 150wpm).
+           - performanceTimeline: Generate a series of 12 numbers (0-100) that reflect the "energy" or "quality" of the interview from start to finish.
+        3. Assign numerical scores for Sentiment and Confidence based on the video analysis text.
+        4. Populate the updated JSON structure with these granular numerical details.
+        
+        Return ONLY valid JSON.`
       },
       {
         role: 'user',
-        content: `Normalize the following interview analysis into this exact JSON schema with all fields required:\n\n{
-  "transcript": "string",
+        content: `Refine and normalize the following interview analysis into this exact JSON schema:
+
+{
+  "transcript": "string (The COMPLETE, unedited transcript)",
   "interviewSummary": "string",
+  "performanceTimeline": [number],
   "videoAnalysis": {
     "posture": "string",
     "bodyLanguage": "string",
-    "eyeContact": "string"
+    "eyeContact": "string",
+    "sentimentScore": number,
+    "confidenceScore": number
   },
   "vocalAnalysis": {
     "clarity": "string",
     "pacing": "string",
-    "fillerWordCount": 0,
-    "unprofessionalWordCount": 0
+    "fillerWordCount": number,
+    "unprofessionalWordCount": number,
+    "fluency": "string",
+    "grammar": "string",
+    "structure": "string",
+    "wordsPerMinute": number
   },
   "contentAnalysis": {
     "answerClarity": "string",
     "relevance": "string",
     "improvementSuggestions": "string"
   },
-  "guidance": ["string"]
-}\n\nAnalysis text:\n${geminiText}`
-      }]
+  "guidance": ["string"],
+  "score": number,
+  "scoreBreakdown": {
+    "visualConfidence": number,
+    "codeQuality": number,
+    "problemSolving": number,
+    "grammar": number,
+    "fluency": number
+  }
+}
 
+Analysis text from Gemini:
+${geminiText}`
+      }]
     });
 
     const groqText = groqCompletion.choices[0]?.message?.content;
