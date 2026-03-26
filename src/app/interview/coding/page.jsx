@@ -82,6 +82,8 @@ function CodingInterviewPage() {
   const [liveTranscript, setLiveTranscript] = useState('');
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [isSpeechListening, setIsSpeechListening] = useState(false);
+  const [codeSubmissions, setCodeSubmissions] = useState([]);
+  const [visualSnapshots, setVisualSnapshots] = useState([]);
 
   const videoRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -90,6 +92,7 @@ function CodingInterviewPage() {
   const shouldKeepListeningRef = useRef(false);
   const finalizedTranscriptRef = useRef('');
   const transcriptCheckpointRef = useRef(0);
+  const visualSnapshotCounterRef = useRef(0);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -422,6 +425,140 @@ function CodingInterviewPage() {
     setAudioEnabled(!audioEnabled);
   };
 
+  const captureCurrentFrame = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      return null;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return null;
+    }
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }, []);
+
+  const runVisualSnapshotAnalysis = useCallback(async ({ questionIndex, trigger }) => {
+    const frameDataUri = captureCurrentFrame();
+    if (!frameDataUri) {
+      return;
+    }
+
+    const snapshotId = `snap-${Date.now()}-${visualSnapshotCounterRef.current++}`;
+    const baseSnapshot = {
+      id: snapshotId,
+      questionIndex,
+      trigger,
+      capturedAt: new Date().toISOString(),
+      frameDataUri,
+      status: 'pending'
+    };
+
+    setVisualSnapshots((prev) => [...prev, baseSnapshot]);
+
+    try {
+      const response = await fetch('/api/frame-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frameDataUri, questionIndex, trigger })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Frame analysis failed');
+      }
+
+      const data = await response.json();
+      setVisualSnapshots((prev) => prev.map((item) =>
+      item.id === snapshotId ?
+      {
+        ...item,
+        status: 'success',
+        analysis: data.analysis || 'No analysis returned.',
+        respondedAt: data.respondedAt || new Date().toISOString()
+      } :
+      item
+      ));
+    } catch (error) {
+      console.warn('Background visual analysis failed:', error);
+      setVisualSnapshots((prev) => prev.map((item) =>
+      item.id === snapshotId ?
+      {
+        ...item,
+        status: 'error',
+        error: error?.message || 'Frame analysis failed.'
+      } :
+      item
+      ));
+    }
+  }, [captureCurrentFrame]);
+
+  const analyzeTranscriptWithGroq = useCallback(async ({ transcript, role, level }) => {
+    const trimmedTranscript = transcript.trim();
+    if (!trimmedTranscript) {
+      return {
+        summary: 'No transcript captured for this interview.',
+        strengths: [],
+        improvements: [],
+        communicationScore: 0,
+        clarityScore: 0,
+        technicalVocabularyScore: 0
+      };
+    }
+
+    const prompt = `You are an interview communication coach. Analyze this transcript from a ${level} ${role} coding interview and return JSON only.
+
+Return this exact shape:
+{
+  "summary": "brief summary",
+  "strengths": ["item"],
+  "improvements": ["item"],
+  "communicationScore": 0,
+  "clarityScore": 0,
+  "technicalVocabularyScore": 0
+}
+
+Scores must be integers from 0 to 100.`;
+
+    const response = await fetch('/api/groq-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: trimmedTranscript,
+        prompt,
+        model: 'llama-3.3-70b-versatile',
+        maxTokens: 900
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Audio analysis request failed.');
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('Audio analysis response was empty.');
+    }
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+
+    return {
+      summary: parsed.summary || 'Transcript analyzed.',
+      strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+      improvements: Array.isArray(parsed.improvements) ? parsed.improvements : [],
+      communicationScore: Number(parsed.communicationScore) || 0,
+      clarityScore: Number(parsed.clarityScore) || 0,
+      technicalVocabularyScore: Number(parsed.technicalVocabularyScore) || 0
+    };
+  }, []);
+
   const handleStartInterview = async () => {
     if (!config.role || !config.level) {
       toast({ variant: 'destructive', title: 'Setup Incomplete', description: 'Please select a role and level.' });
@@ -436,6 +573,10 @@ function CodingInterviewPage() {
     setIsLoading(true);
     setStage('connecting');
     setSpokenTranscript('');
+    setCode('');
+    setCurrentQuestionIndex(0);
+    setCodeSubmissions([]);
+    setVisualSnapshots([]);
     finalizedTranscriptRef.current = '';
     transcriptCheckpointRef.current = 0;
 
@@ -456,6 +597,9 @@ function CodingInterviewPage() {
         try {
           mediaRecorderRef.current.start(1000); // Record in 1-second chunks
           console.log('MediaRecorder.start() called');
+          setTimeout(() => {
+            void runVisualSnapshotAnalysis({ questionIndex: 0, trigger: 'start' });
+          }, 1200);
         } catch (error) {
           console.error('Error starting recorder:', error);
           toast({
@@ -527,7 +671,7 @@ function CodingInterviewPage() {
     }
   }, [stage, spokenTranscript, say, questions, currentQuestionIndex]);
 
-  const handleFinishInterview = async () => {
+  const handleFinishInterview = async (finalCodeSubmissions) => {
     if (!mediaRecorderRef.current || !isRecording) {
       toast({
         variant: 'destructive',
@@ -655,21 +799,48 @@ function CodingInterviewPage() {
         const { frameImages, totalDurationSeconds } = await extractFrameImagesFromBlob(videoBlob, 1);
 
         setProcessingState({ progress: 55, message: 'Analyzing your code and performance…' });
-        const analysisResult = await analyzeCodingAttempt({
+
+        const fullTranscript = (finalizedTranscriptRef.current.trim() || spokenTranscript.trim());
+        const mergedCodeText = finalCodeSubmissions.map((entry, index) =>
+        `Question ${index + 1}: ${entry.question}\n\n${entry.code}`
+        ).join('\n\n-----\n\n');
+        const mergedQuestionText = finalCodeSubmissions.map((entry, index) => `Q${index + 1}: ${entry.question}`).join(' | ');
+
+        const [analysisResult, audioAnalysis] = await Promise.all([
+        analyzeCodingAttempt({
           frameImages,
           totalDurationSeconds,
-          question: questions[currentQuestionIndex].question,
-          code: code,
-          spokenTranscript: finalizedTranscriptRef.current.trim() || spokenTranscript.trim(),
+          question: mergedQuestionText,
+          code: mergedCodeText,
+          spokenTranscript: fullTranscript,
           role: config.role,
           level: config.level,
           resumeText: ''
-        });
+        }),
+        analyzeTranscriptWithGroq({
+          transcript: fullTranscript,
+          role: config.role,
+          level: config.level
+        })
+        ]);
 
         setProcessingState({ progress: 90, message: 'Finalizing results…' });
         const videoUrl = URL.createObjectURL(videoBlob);
+        const enrichedAnalysis = {
+          ...analysisResult,
+          transcript: fullTranscript,
+          audioAnalysis,
+          visualSnapshots,
+          codeSubmissions: finalCodeSubmissions,
+          codingAnalysis: {
+            correctnessDescription: analysisResult?.feedback?.codeQuality || '',
+            efficiency: analysisResult?.feedback?.problemSolving || '',
+            styleAndReadability: analysisResult?.feedback?.communication || '',
+            alternativeApproaches: Array.isArray(analysisResult?.feedback?.improvements) ? analysisResult.feedback.improvements.join(' ') : ''
+          }
+        };
         sessionStorage.setItem('videoUrl', videoUrl);
-        sessionStorage.setItem('analysisResult', JSON.stringify(analysisResult));
+        sessionStorage.setItem('analysisResult', JSON.stringify(enrichedAnalysis));
         sessionStorage.setItem('analysisType', 'coding');
 
         setProcessingState({ progress: 100, message: 'Complete!' });
@@ -684,6 +855,41 @@ function CodingInterviewPage() {
         setStage('error');
       }
     }, 1000); // Give more time for chunks to be collected
+  };
+
+  const handleSubmitCurrentQuestion = async () => {
+    if (!isRecording) return;
+
+    const question = questions[currentQuestionIndex];
+    if (!question) return;
+
+    const submission = {
+      question: question.question,
+      topic: question.topic,
+      code: code.trim()
+    };
+
+    const updatedSubmissions = [...codeSubmissions, submission];
+    setCodeSubmissions(updatedSubmissions);
+
+    const hasMoreQuestions = currentQuestionIndex < questions.length - 1;
+    if (!hasMoreQuestions) {
+      await handleFinishInterview(updatedSubmissions);
+      return;
+    }
+
+    const nextQuestionIndex = currentQuestionIndex + 1;
+    setCurrentQuestionIndex(nextQuestionIndex);
+    setCode('');
+    setStage('conceptual');
+
+    if (nextQuestionIndex === 1) {
+      setTimeout(() => {
+        void runVisualSnapshotAnalysis({ questionIndex: 1, trigger: 'second-question' });
+      }, 300);
+    }
+
+    await say(`Great work on question ${currentQuestionIndex + 1}. Next question: ${questions[nextQuestionIndex].question} Please explain your approach first.`);
   };
 
   const toggleMic = () => {
@@ -963,12 +1169,12 @@ function CodingInterviewPage() {
                 
                                 <div style={{ position: 'absolute', bottom: '1.5rem', right: '1.5rem' }}>
                                     <Button
-                    onClick={handleFinishInterview}
+                            onClick={handleSubmitCurrentQuestion}
                     style={{ height: '3rem', paddingLeft: '1.5rem', paddingRight: '1.5rem', borderRadius: '0.75rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', backgroundColor: '#4f46e5', color: '#ffffff', fontWeight: '500' }}
                     disabled={!isRecording}>
                     
                                         <Send style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
-                                        {isRecording ? 'Submit & Analyze' : 'Recording Not Active'}
+                                      {isRecording ? (currentQuestionIndex < questions.length - 1 ? 'Submit & Next Question' : 'Submit & Analyze') : 'Recording Not Active'}
                                     </Button>
                                 </div>
                             </CardContent>
