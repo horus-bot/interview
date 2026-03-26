@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AnalysisDashboard } from '@/components/analysis-dashboard';
 import { withAuth } from '@/context/auth-context';
 import { Sparkles } from 'lucide-react';
+import { ExpertChatbot } from '@/components/ExpertChatbot';
 
 function AnalysisPage() {
   const router = useRouter();
@@ -167,7 +168,12 @@ function AnalysisPage() {
       </div>);
   }
 
-  return <AnalysisDashboard videoUrl={videoUrl} analysis={analysis} />;
+  return (
+    <>
+      <AnalysisDashboard videoUrl={videoUrl} analysis={analysis} />
+      <ExpertChatbot analysis={analysis} />
+    </>
+  );
 }
 
 export default withAuth(AnalysisPage);
